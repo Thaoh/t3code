@@ -3,6 +3,8 @@ import type {
   VcsCreateRefResult,
   VcsCreateWorktreeInput,
   VcsCreateWorktreeResult,
+  VcsAuthenticateRemoteInput,
+  VcsAuthenticateRemoteResult,
   VcsInitInput,
   VcsListRefsInput,
   VcsListRefsResult,
@@ -572,6 +574,7 @@ export interface EnvironmentApi {
     switchRef: (input: VcsSwitchRefInput) => Promise<VcsSwitchRefResult>;
     init: (input: VcsInitInput) => Promise<void>;
     pull: (input: VcsPullInput) => Promise<VcsPullResult>;
+    authenticateRemote: (input: VcsAuthenticateRemoteInput) => Promise<VcsAuthenticateRemoteResult>;
     refreshStatus: (input: VcsStatusInput) => Promise<VcsStatusResult>;
     onStatus: (
       input: VcsStatusInput,

@@ -161,6 +161,7 @@ const RPC_REQUIRED_SCOPE = new Map<string, AuthEnvironmentScope>([
   [WS_METHODS.subscribeVcsStatus, AuthOrchestrationReadScope],
   [WS_METHODS.vcsRefreshStatus, AuthOrchestrationReadScope],
   [WS_METHODS.vcsPull, AuthOrchestrationOperateScope],
+  [WS_METHODS.vcsAuthenticateRemote, AuthOrchestrationOperateScope],
   [WS_METHODS.gitRunStackedAction, AuthOrchestrationOperateScope],
   [WS_METHODS.gitResolvePullRequest, AuthOrchestrationOperateScope],
   [WS_METHODS.gitPreparePullRequestThread, AuthOrchestrationOperateScope],
@@ -1212,6 +1213,16 @@ const makeWsRpcLayer = (currentSession: AuthenticatedSession) =>
                   refreshGitStatus(input.cwd).pipe(Effect.ignore({ log: true }), Effect.as(result)),
               }),
             ),
+            { "rpc.aggregate": "git" },
+          ),
+        [WS_METHODS.vcsAuthenticateRemote]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.vcsAuthenticateRemote,
+            gitWorkflow
+              .authenticateRemote(input.cwd)
+              .pipe(
+                Effect.tap(() => refreshGitStatus(input.cwd).pipe(Effect.ignore({ log: true }))),
+              ),
             { "rpc.aggregate": "git" },
           ),
         [WS_METHODS.gitRunStackedAction]: (input) =>

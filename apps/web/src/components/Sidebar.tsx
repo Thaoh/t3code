@@ -4,6 +4,7 @@ import {
   ChevronRightIcon,
   CloudIcon,
   FolderPlusIcon,
+  LockKeyholeIcon,
   SearchIcon,
   SettingsIcon,
   SquarePenIcon,
@@ -86,7 +87,7 @@ import {
 } from "../keybindings";
 import { useModelPickerOpen } from "../modelPickerOpenState";
 import { useShortcutModifierState } from "../shortcutModifierState";
-import { useVcsStatus } from "../lib/vcsStatusState";
+import { refreshVcsStatus, useVcsStatus } from "../lib/vcsStatusState";
 import { readLocalApi } from "../localApi";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { useNewThreadHandler } from "../hooks/useHandleNewThread";
@@ -1047,6 +1048,13 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
   const projectExpanded = useUiStateStore(
     (state) => state.projectExpandedById[project.projectKey] ?? true,
   );
+  const projectVcsStatus = useVcsStatus({
+    environmentId: project.environmentId,
+    cwd: project.cwd,
+  });
+  const projectRemoteAuth = projectVcsStatus.data?.remoteAuth;
+  const showProjectAuthRequired = projectRemoteAuth?.status === "unauthenticated";
+  const [authenticatingProjectRemote, setAuthenticatingProjectRemote] = useState(false);
   const threadLastVisitedAts = useUiStateStore(
     useShallow((state) =>
       projectThreads.map(
@@ -1269,6 +1277,68 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
       suppressProjectClickAfterDragRef.current = false;
     },
     [suppressProjectClickAfterDragRef, suppressProjectClickForContextMenuRef],
+  );
+
+  const handleProjectAuthClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (authenticatingProjectRemote) {
+        return;
+      }
+
+      const api = readEnvironmentApi(project.environmentId);
+      if (!api) {
+        toastManager.add({
+          type: "error",
+          title: "Git authentication is unavailable.",
+        });
+        return;
+      }
+
+      setAuthenticatingProjectRemote(true);
+      void api.vcs
+        .authenticateRemote({ cwd: project.cwd })
+        .then((result) => {
+          if (result.remoteAuth.status === "authenticated") {
+            toastManager.add({
+              type: "success",
+              title: "GitHub authentication confirmed",
+              description: project.displayName,
+            });
+          } else if (result.remoteAuth.status === "unauthenticated") {
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "GitHub authentication failed",
+                description:
+                  result.remoteAuth.detail ?? "Complete the GitHub login dialog and try again.",
+              }),
+            );
+          } else {
+            toastManager.add({
+              type: "info",
+              title: "Git authentication status is unknown",
+              description: result.remoteAuth.detail ?? project.displayName,
+            });
+          }
+          return refreshVcsStatus({
+            environmentId: project.environmentId,
+            cwd: project.cwd,
+          });
+        })
+        .catch((error) => {
+          toastManager.add(
+            stackedThreadToast({
+              type: "error",
+              title: "Failed to start GitHub authentication",
+              description: error instanceof Error ? error.message : "An error occurred.",
+            }),
+          );
+        })
+        .finally(() => setAuthenticatingProjectRemote(false));
+    },
+    [authenticatingProjectRemote, project.cwd, project.displayName, project.environmentId],
   );
 
   const openProjectRenameDialog = useCallback((member: SidebarProjectGroupMember) => {
@@ -2051,6 +2121,28 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
             </TooltipPopup>
           </Tooltip>
         )}
+        {showProjectAuthRequired ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label={`Authenticate GitHub for ${project.displayName}`}
+                  className="absolute top-1 right-7 inline-flex size-5 cursor-pointer items-center justify-center rounded-md text-amber-600 transition-colors hover:bg-amber-500/10 hover:text-amber-700 focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-amber-500 max-sm:right-12"
+                  disabled={authenticatingProjectRemote}
+                  onClick={handleProjectAuthClick}
+                >
+                  <LockKeyholeIcon
+                    className={`size-3.5 ${authenticatingProjectRemote ? "animate-pulse" : ""}`}
+                  />
+                </button>
+              }
+            />
+            <TooltipPopup side="top">
+              GitHub authentication required for {project.displayName}
+            </TooltipPopup>
+          </Tooltip>
+        ) : null}
         <Tooltip>
           <TooltipTrigger
             render={

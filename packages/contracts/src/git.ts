@@ -104,10 +104,22 @@ export const VcsStatusInput = Schema.Struct({
 });
 export type VcsStatusInput = typeof VcsStatusInput.Type;
 
+export const VcsRemoteAuthStatus = Schema.Literals(["authenticated", "unauthenticated", "unknown"]);
+export type VcsRemoteAuthStatus = typeof VcsRemoteAuthStatus.Type;
+
+export const VcsRemoteAuth = Schema.Struct({
+  status: VcsRemoteAuthStatus,
+  detail: Schema.optional(TrimmedNonEmptyStringSchema),
+});
+export type VcsRemoteAuth = typeof VcsRemoteAuth.Type;
+
 export const VcsPullInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
 });
 export type VcsPullInput = typeof VcsPullInput.Type;
+
+export const VcsAuthenticateRemoteInput = VcsStatusInput;
+export type VcsAuthenticateRemoteInput = typeof VcsAuthenticateRemoteInput.Type;
 
 export const GitRunStackedActionInput = Schema.Struct({
   actionId: TrimmedNonEmptyStringSchema,
@@ -221,6 +233,7 @@ const VcsStatusRemoteShape = {
   behindCount: NonNegativeInt,
   aheadOfDefaultCount: Schema.optional(NonNegativeInt),
   pr: Schema.NullOr(VcsStatusChangeRequest),
+  remoteAuth: Schema.optionalKey(VcsRemoteAuth),
 };
 
 export const VcsStatusLocalResult = Schema.Struct(VcsStatusLocalShape);
@@ -315,6 +328,11 @@ export const VcsPullResult = Schema.Struct({
   upstreamRef: TrimmedNonEmptyStringSchema.pipe(Schema.NullOr),
 });
 export type VcsPullResult = typeof VcsPullResult.Type;
+
+export const VcsAuthenticateRemoteResult = Schema.Struct({
+  remoteAuth: VcsRemoteAuth,
+});
+export type VcsAuthenticateRemoteResult = typeof VcsAuthenticateRemoteResult.Type;
 
 // RPC / domain errors
 export class GitCommandError extends Schema.TaggedErrorClass<GitCommandError>()("GitCommandError", {

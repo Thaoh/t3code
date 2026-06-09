@@ -22,6 +22,7 @@ import {
   type GitResolvePullRequestResult,
   type GitRunStackedActionInput,
   type GitRunStackedActionResult,
+  type VcsAuthenticateRemoteResult,
   type VcsStatusInput,
   type VcsStatusLocalResult,
   type VcsStatusRemoteResult,
@@ -46,6 +47,9 @@ export interface GitWorkflowServiceShape {
   readonly invalidateRemoteStatus: (cwd: string) => Effect.Effect<void, never>;
   readonly invalidateStatus: (cwd: string) => Effect.Effect<void, never>;
   readonly pullCurrentBranch: (cwd: string) => Effect.Effect<VcsPullResult, GitCommandError>;
+  readonly authenticateRemote: (
+    cwd: string,
+  ) => Effect.Effect<VcsAuthenticateRemoteResult, GitCommandError>;
   readonly runStackedAction: (
     input: GitRunStackedActionInput,
     options?: GitRunStackedActionOptions,
@@ -271,6 +275,11 @@ export const make = Effect.fn("makeGitWorkflowService")(function* () {
     pullCurrentBranch: (cwd) =>
       ensureGitCommand("GitWorkflowService.pullCurrentBranch", cwd).pipe(
         Effect.andThen(git.pullCurrentBranch(cwd)),
+      ),
+    authenticateRemote: (cwd) =>
+      ensureGitCommand("GitWorkflowService.authenticateRemote", cwd).pipe(
+        Effect.andThen(git.authenticateRemote(cwd)),
+        Effect.map((remoteAuth) => ({ remoteAuth })),
       ),
     runStackedAction: (input, options) =>
       ensureGit("GitWorkflowService.runStackedAction", input.cwd).pipe(

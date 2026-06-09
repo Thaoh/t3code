@@ -229,6 +229,7 @@ function toRemoteStatusPart(status: VcsStatusResult): VcsStatusRemoteResult {
       ? {}
       : { aheadOfDefaultCount: status.aheadOfDefaultCount }),
     pr: status.pr,
+    ...(status.remoteAuth === undefined ? {} : { remoteAuth: status.remoteAuth }),
   };
 }
 

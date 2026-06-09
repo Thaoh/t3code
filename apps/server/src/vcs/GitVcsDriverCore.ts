@@ -21,6 +21,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import {
   GitCommandError,
+  type VcsRemoteAuth,
   type ReviewDiffPreviewInput,
   type ReviewDiffPreviewSource,
   type VcsRef,
@@ -54,8 +55,11 @@ const STATUS_UPSTREAM_REFRESH_TIMEOUT = Duration.seconds(5);
 const STATUS_UPSTREAM_REFRESH_FAILURE_COOLDOWN = Duration.seconds(5);
 const STATUS_UPSTREAM_REFRESH_CACHE_CAPACITY = 2_048;
 const STATUS_UPSTREAM_REFRESH_ENV = Object.freeze({
+  GCM_INTERACTIVE: "false",
+  GIT_TERMINAL_PROMPT: "0",
   SSH_ASKPASS_REQUIRE: "never",
 } satisfies NodeJS.ProcessEnv);
+const INTERACTIVE_REMOTE_AUTH_TIMEOUT = Duration.minutes(10);
 const DEFAULT_BASE_BRANCH_CANDIDATES = ["main", "master"] as const;
 const GIT_LIST_BRANCHES_DEFAULT_LIMIT = 100;
 const NON_REPOSITORY_STATUS_DETAILS = Object.freeze<GitVcsDriver.GitStatusDetails>({
@@ -70,6 +74,7 @@ const NON_REPOSITORY_STATUS_DETAILS = Object.freeze<GitVcsDriver.GitStatusDetail
   aheadCount: 0,
   behindCount: 0,
   aheadOfDefaultCount: 0,
+  remoteAuth: { status: "unknown" },
 });
 
 type TraceTailState = {
@@ -99,6 +104,40 @@ function parseBranchAb(value: string): { ahead: number; behind: number } {
   return {
     ahead: Number(match[1] ?? "0"),
     behind: Number(match[2] ?? "0"),
+  };
+}
+
+function isRemoteAuthFailure(output: string): boolean {
+  const lower = output.toLowerCase();
+  return [
+    "authentication failed",
+    "could not read username",
+    "could not read password",
+    "terminal prompts disabled",
+    "credential",
+    "repository not found",
+    "permission denied",
+    "403",
+    "401",
+  ].some((pattern) => lower.includes(pattern));
+}
+
+function remoteAuthFromFetchResult(result: GitVcsDriver.ExecuteGitResult): VcsRemoteAuth {
+  if (result.exitCode === 0) {
+    return { status: "authenticated" };
+  }
+
+  const detail = (result.stderr.trim() || result.stdout.trim()).slice(0, 500);
+  if (isRemoteAuthFailure(detail)) {
+    return {
+      status: "unauthenticated",
+      ...(detail.length > 0 ? { detail } : {}),
+    };
+  }
+
+  return {
+    status: "unknown",
+    ...(detail.length > 0 ? { detail } : {}),
   };
 }
 
@@ -893,22 +932,27 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     );
   });
 
-  const fetchRemoteForStatus = (
-    gitCommonDir: string,
-    remoteName: string,
-  ): Effect.Effect<void, GitCommandError> => {
+  const fetchRemoteForStatus = (input: {
+    gitCommonDir: string;
+    remoteName: string;
+    interactive: boolean;
+  }): Effect.Effect<VcsRemoteAuth, GitCommandError> => {
     const fetchCwd =
-      path.basename(gitCommonDir) === ".git" ? path.dirname(gitCommonDir) : gitCommonDir;
+      path.basename(input.gitCommonDir) === ".git"
+        ? path.dirname(input.gitCommonDir)
+        : input.gitCommonDir;
     return executeGit(
       "GitVcsDriver.fetchRemoteForStatus",
       fetchCwd,
-      ["--git-dir", gitCommonDir, "fetch", "--quiet", "--no-tags", remoteName],
+      ["--git-dir", input.gitCommonDir, "fetch", "--quiet", "--no-tags", input.remoteName],
       {
         allowNonZeroExit: true,
-        env: STATUS_UPSTREAM_REFRESH_ENV,
-        timeoutMs: Duration.toMillis(STATUS_UPSTREAM_REFRESH_TIMEOUT),
+        ...(input.interactive ? {} : { env: STATUS_UPSTREAM_REFRESH_ENV }),
+        timeoutMs: Duration.toMillis(
+          input.interactive ? INTERACTIVE_REMOTE_AUTH_TIMEOUT : STATUS_UPSTREAM_REFRESH_TIMEOUT,
+        ),
       },
-    ).pipe(Effect.asVoid);
+    ).pipe(Effect.map(remoteAuthFromFetchResult));
   };
 
   const resolveGitCommonDir = Effect.fn("resolveGitCommonDir")(function* (cwd: string) {
@@ -922,8 +966,11 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
   const refreshStatusRemoteCacheEntry = Effect.fn("refreshStatusRemoteCacheEntry")(function* (
     cacheKey: StatusRemoteRefreshCacheKey,
   ) {
-    yield* fetchRemoteForStatus(cacheKey.gitCommonDir, cacheKey.remoteName);
-    return true as const;
+    return yield* fetchRemoteForStatus({
+      gitCommonDir: cacheKey.gitCommonDir,
+      remoteName: cacheKey.remoteName,
+      interactive: false,
+    });
   });
 
   const statusRemoteRefreshCache = yield* Cache.makeWith(refreshStatusRemoteCacheEntry, {
@@ -937,17 +984,32 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
 
   const refreshStatusUpstreamIfStale = Effect.fn("refreshStatusUpstreamIfStale")(function* (
     cwd: string,
-  ) {
+  ): Effect.fn.Return<VcsRemoteAuth, GitCommandError> {
     const upstream = yield* resolveCurrentUpstream(cwd);
-    if (!upstream) return;
+    if (!upstream) return { status: "unknown" };
     const gitCommonDir = yield* resolveGitCommonDir(cwd);
-    yield* Cache.get(
+    return yield* Cache.get(
       statusRemoteRefreshCache,
       new StatusRemoteRefreshCacheKey({
         gitCommonDir,
         remoteName: upstream.remoteName,
       }),
     );
+  });
+
+  const authenticateRemote: GitVcsDriver.GitVcsDriverShape["authenticateRemote"] = Effect.fn(
+    "authenticateRemote",
+  )(function* (cwd) {
+    const upstream = yield* resolveCurrentUpstream(cwd);
+    if (!upstream) {
+      return { status: "unknown", detail: "No upstream remote is configured." };
+    }
+    const gitCommonDir = yield* resolveGitCommonDir(cwd);
+    return yield* fetchRemoteForStatus({
+      gitCommonDir,
+      remoteName: upstream.remoteName,
+      interactive: true,
+    });
   });
 
   const resolveDefaultBranchName = (
@@ -1348,11 +1410,17 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
 
   const statusDetails: GitVcsDriver.GitVcsDriverShape["statusDetails"] = Effect.fn("statusDetails")(
     function* (cwd) {
-      yield* refreshStatusUpstreamIfStale(cwd).pipe(
+      const remoteAuth = yield* refreshStatusUpstreamIfStale(cwd).pipe(
         Effect.catchIf(isMissingGitCwdError, () => Effect.void),
-        Effect.ignoreCause({ log: true }),
+        Effect.catchCause((cause) =>
+          Effect.logWarning("GitVcsDriver.statusDetails.remoteAuthRefreshFailed", {
+            cwd,
+            cause: cause.toString(),
+          }).pipe(Effect.as({ status: "unknown" as const })),
+        ),
       );
-      return yield* readStatusDetailsLocal(cwd);
+      const details = yield* readStatusDetailsLocal(cwd);
+      return { ...details, ...(remoteAuth ? { remoteAuth } : {}) };
     },
   );
 
@@ -1369,6 +1437,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         aheadCount: details.aheadCount,
         behindCount: details.behindCount,
         aheadOfDefaultCount: details.aheadOfDefaultCount,
+        ...(details.remoteAuth === undefined ? {} : { remoteAuth: details.remoteAuth }),
         pr: null,
       })),
     );
@@ -2306,6 +2375,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     commit,
     pushCurrentBranch,
     pullCurrentBranch,
+    authenticateRemote,
     readRangeContext,
     getReviewDiffPreview,
     readConfigValue,
