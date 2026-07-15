@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { Textarea } from "~/components/ui/textarea";
+import { useClientSettings } from "../hooks/useSettings";
 import { useThreadHandoffStore } from "../threadHandoffStore";
 
 function ThreadHandoffForm({ threadTitle }: { threadTitle: string | null }) {
@@ -69,8 +70,13 @@ function ThreadHandoffForm({ threadTitle }: { threadTitle: string | null }) {
  * float above the chat when they return to that thread.
  */
 export function ThreadHandoffDialog() {
+  const threadParkingNotes = useClientSettings((settings) => settings.threadParkingNotes);
   const pendingPrompt = useThreadHandoffStore((store) => store.pendingPrompt);
   const skipHandoffPrompt = useThreadHandoffStore((store) => store.skipHandoffPrompt);
+
+  if (!threadParkingNotes) {
+    return null;
+  }
 
   return (
     <Dialog

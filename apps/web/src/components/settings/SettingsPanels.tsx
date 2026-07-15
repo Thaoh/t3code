@@ -722,6 +722,32 @@ export function GeneralSettingsPanel() {
         />
 
         <SettingsRow
+          title="Thread parking"
+          description="When you switch away from a thread you were working in, capture what you were doing and show the note when you return."
+          resetAction={
+            settings.threadParkingNotes !== DEFAULT_UNIFIED_SETTINGS.threadParkingNotes ? (
+              <SettingResetButton
+                label="thread parking"
+                onClick={() =>
+                  updateSettings({
+                    threadParkingNotes: DEFAULT_UNIFIED_SETTINGS.threadParkingNotes,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.threadParkingNotes}
+              onCheckedChange={(checked) =>
+                updateSettings({ threadParkingNotes: Boolean(checked) })
+              }
+              aria-label="Capture thread parking notes on switch"
+            />
+          }
+        />
+
+        <SettingsRow
           title="New threads"
           description="Pick the default workspace mode for newly created draft threads."
           resetAction={

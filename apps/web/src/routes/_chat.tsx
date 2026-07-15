@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { isCommandPaletteOpen } from "../commandPaletteContext";
 import { dispatchPreviewAction } from "../components/preview/previewActionBus";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
+import { useClientSettings } from "../hooks/useSettings";
 import {
   startNewLocalThreadFromContext,
   startNewThreadFromContext,
@@ -153,11 +154,13 @@ function ChatRouteGlobalShortcuts() {
 }
 
 function ChatRouteThreadHandoffTracking() {
+  const threadParkingNotes = useClientSettings((settings) => settings.threadParkingNotes);
   const routeTarget = useParams({
     strict: false,
     select: (params) => resolveThreadRouteTarget(params),
   });
-  const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
+  const routeThreadRef =
+    threadParkingNotes && routeTarget?.kind === "server" ? routeTarget.threadRef : null;
   const activeThread = useThread(routeThreadRef);
   useThreadHandoffTracking(routeThreadRef, activeThread?.title ?? null);
   return null;
