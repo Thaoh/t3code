@@ -1,4 +1,4 @@
-import { XIcon } from "lucide-react";
+import { NotebookPenIcon, XIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { useThreadHandoffStore } from "../threadHandoffStore";
 
@@ -15,26 +15,23 @@ export function ThreadHandoffNoteBanner({ threadKey }: { threadKey: string }) {
   }
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-2 z-30 flex justify-center px-4">
+    <div className="pointer-events-none absolute inset-x-0 top-3 z-30 flex justify-center px-4">
       <div
         role="note"
         aria-label="Where you left off"
-        className="pointer-events-auto flex w-full max-w-xl items-start gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 text-card-foreground shadow-lg/5"
+        className="pointer-events-auto flex w-full max-w-xl items-start gap-3 rounded-xl border border-primary/24 bg-[color-mix(in_srgb,var(--popover)_94%,var(--primary))] px-4 py-3 text-popover-foreground shadow-lg ring-1 ring-black/8 dark:ring-white/8"
       >
+        <NotebookPenIcon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
         <div className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
-          <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-            Where you left off
-          </span>
+          <span className="font-medium">Where you left off</span>
           {note.goal ? (
-            <p className="min-w-0 break-words">
-              <span className="text-muted-foreground">Trying to do: </span>
-              {note.goal}
+            <p className="min-w-0 break-words text-muted-foreground">
+              Trying to do: <span className="text-foreground">{note.goal}</span>
             </p>
           ) : null}
           {note.nextStep ? (
-            <p className="min-w-0 break-words">
-              <span className="text-muted-foreground">Next step: </span>
-              {note.nextStep}
+            <p className="min-w-0 break-words text-muted-foreground">
+              Next step: <span className="text-foreground">{note.nextStep}</span>
             </p>
           ) : null}
         </div>
