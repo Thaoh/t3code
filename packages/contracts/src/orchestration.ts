@@ -341,6 +341,17 @@ export const OrchestrationLatestTurn = Schema.Struct({
 });
 export type OrchestrationLatestTurn = typeof OrchestrationLatestTurn.Type;
 
+/**
+ * Thread-parking note captured when the user switches away from a thread.
+ * Stored on the thread so it follows the user across clients.
+ */
+export const ThreadParkedNote = Schema.Struct({
+  goal: Schema.String,
+  nextStep: Schema.String,
+  createdAt: IsoDateTime,
+});
+export type ThreadParkedNote = typeof ThreadParkedNote.Type;
+
 export const OrchestrationThread = Schema.Struct({
   id: ThreadId,
   projectId: ProjectId,
@@ -352,6 +363,9 @@ export const OrchestrationThread = Schema.Struct({
   ),
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
+  parkedNote: Schema.NullOr(ThreadParkedNote).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
   latestTurn: Schema.NullOr(OrchestrationLatestTurn),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
@@ -398,6 +412,9 @@ export const OrchestrationThreadShell = Schema.Struct({
   ),
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
+  parkedNote: Schema.NullOr(ThreadParkedNote).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
   latestTurn: Schema.NullOr(OrchestrationLatestTurn),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
@@ -554,6 +571,7 @@ const ThreadMetaUpdateCommand = Schema.Struct({
   branch: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   expectedBranch: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   worktreePath: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
+  parkedNote: Schema.optional(Schema.NullOr(ThreadParkedNote)),
 });
 
 const ThreadRuntimeModeSetCommand = Schema.Struct({
@@ -895,6 +913,7 @@ export const ThreadMetaUpdatedPayload = Schema.Struct({
   modelSelection: Schema.optional(ModelSelection),
   branch: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   worktreePath: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
+  parkedNote: Schema.optional(Schema.NullOr(ThreadParkedNote)),
   updatedAt: IsoDateTime,
 });
 

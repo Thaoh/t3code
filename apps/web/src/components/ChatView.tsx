@@ -5081,8 +5081,11 @@ function ChatViewContent(props: ChatViewProps) {
             {/* Messages Wrapper */}
             <div className="@container relative flex min-h-0 flex-1 flex-col">
               {/* Parked note captured when the user last switched away */}
-              {routeKind === "server" ? (
-                <ThreadParkingNoteBanner threadKey={routeThreadKey} />
+              {routeKind === "server" && activeThreadRef ? (
+                <ThreadParkingNoteBanner
+                  threadRef={activeThreadRef}
+                  parkedNote={activeThread.parkedNote ?? null}
+                />
               ) : null}
               {/* Messages — LegendList handles virtualization and scrolling internally */}
               <MessagesTimeline

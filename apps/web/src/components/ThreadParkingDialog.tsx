@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { ScopedThreadRef } from "@t3tools/contracts";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -11,11 +12,21 @@ import {
 } from "~/components/ui/dialog";
 import { Textarea } from "~/components/ui/textarea";
 import { useClientSettings } from "../hooks/useSettings";
+import { threadEnvironment } from "../state/threads";
+import { useAtomCommand } from "../state/use-atom-command";
 import { useThreadParkingStore } from "../threadParkingStore";
 
-function ThreadParkingForm({ threadTitle }: { threadTitle: string | null }) {
-  const submitParkingNote = useThreadParkingStore((store) => store.submitParkingNote);
+function ThreadParkingForm({
+  threadRef,
+  threadTitle,
+}: {
+  threadRef: ScopedThreadRef;
+  threadTitle: string | null;
+}) {
   const skipParkingPrompt = useThreadParkingStore((store) => store.skipParkingPrompt);
+  const updateThreadMetadata = useAtomCommand(threadEnvironment.updateMetadata, {
+    reportFailure: false,
+  });
   const [goal, setGoal] = useState("");
   const [nextStep, setNextStep] = useState("");
 
@@ -23,7 +34,22 @@ function ThreadParkingForm({ threadTitle }: { threadTitle: string | null }) {
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        submitParkingNote({ goal, nextStep });
+        const trimmedGoal = goal.trim();
+        const trimmedNextStep = nextStep.trim();
+        if (trimmedGoal || trimmedNextStep) {
+          void updateThreadMetadata({
+            environmentId: threadRef.environmentId,
+            input: {
+              threadId: threadRef.threadId,
+              parkedNote: {
+                goal: trimmedGoal,
+                nextStep: trimmedNextStep,
+                createdAt: new Date().toISOString(),
+              },
+            },
+          });
+        }
+        skipParkingPrompt();
       }}
       className="contents"
     >
@@ -67,7 +93,8 @@ function ThreadParkingForm({ threadTitle }: { threadTitle: string | null }) {
 /**
  * Attention-residue capture: when the user switches away from a thread they
  * were working in, ask what they were doing and what comes next. The answers
- * float above the chat when they return to that thread.
+ * are stored on the thread server-side, so they follow the user to any
+ * connected client and float above the chat when they return.
  */
 export function ThreadParkingDialog() {
   const threadParkingNotes = useClientSettings((settings) => settings.threadParkingNotes);
@@ -91,6 +118,7 @@ export function ThreadParkingDialog() {
         <DialogPopup showCloseButton={false}>
           <ThreadParkingForm
             key={pendingPrompt.threadKey}
+            threadRef={pendingPrompt.threadRef}
             threadTitle={pendingPrompt.threadTitle}
           />
         </DialogPopup>

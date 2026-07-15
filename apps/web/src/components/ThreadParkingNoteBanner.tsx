@@ -1,18 +1,28 @@
 import { NotebookPenIcon, XIcon } from "lucide-react";
+import type { ScopedThreadRef, ThreadParkedNote } from "@t3tools/contracts";
 import { Button } from "~/components/ui/button";
 import { useClientSettings } from "../hooks/useSettings";
-import { useThreadParkingStore } from "../threadParkingStore";
+import { threadEnvironment } from "../state/threads";
+import { useAtomCommand } from "../state/use-atom-command";
 
 /**
  * Floating recap of the parked note captured when the user last left this
- * thread. Hovers above the chat until dismissed.
+ * thread. Hovers above the chat until dismissed; the note lives on the
+ * thread server-side, so dismissing it clears it for every client.
  */
-export function ThreadParkingNoteBanner({ threadKey }: { threadKey: string }) {
+export function ThreadParkingNoteBanner({
+  threadRef,
+  parkedNote,
+}: {
+  threadRef: ScopedThreadRef;
+  parkedNote: ThreadParkedNote | null;
+}) {
   const threadParkingNotes = useClientSettings((settings) => settings.threadParkingNotes);
-  const note = useThreadParkingStore((store) => store.notesByThreadKey[threadKey] ?? null);
-  const dismissParkingNote = useThreadParkingStore((store) => store.dismissParkingNote);
+  const updateThreadMetadata = useAtomCommand(threadEnvironment.updateMetadata, {
+    reportFailure: false,
+  });
 
-  if (!threadParkingNotes || !note) {
+  if (!threadParkingNotes || !parkedNote) {
     return null;
   }
 
@@ -29,14 +39,14 @@ export function ThreadParkingNoteBanner({ threadKey }: { threadKey: string }) {
         <NotebookPenIcon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
         <div className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
           <span className="font-medium">Where you left off</span>
-          {note.goal ? (
+          {parkedNote.goal ? (
             <p className="min-w-0 break-words text-muted-foreground">
-              Trying to do: <span className="text-foreground">{note.goal}</span>
+              Trying to do: <span className="text-foreground">{parkedNote.goal}</span>
             </p>
           ) : null}
-          {note.nextStep ? (
+          {parkedNote.nextStep ? (
             <p className="min-w-0 break-words text-muted-foreground">
-              Next step: <span className="text-foreground">{note.nextStep}</span>
+              Next step: <span className="text-foreground">{parkedNote.nextStep}</span>
             </p>
           ) : null}
         </div>
@@ -45,7 +55,12 @@ export function ThreadParkingNoteBanner({ threadKey }: { threadKey: string }) {
           variant="ghost"
           aria-label="Dismiss note"
           className="-mr-1.5 -mt-1 shrink-0"
-          onClick={() => dismissParkingNote(threadKey)}
+          onClick={() =>
+            void updateThreadMetadata({
+              environmentId: threadRef.environmentId,
+              input: { threadId: threadRef.threadId, parkedNote: null },
+            })
+          }
         >
           <XIcon />
         </Button>

@@ -2,155 +2,62 @@ import type { ScopedThreadRef } from "@t3tools/contracts";
 import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { useEffect, useRef } from "react";
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
 import { useComposerDraftStore } from "./composerDraftStore";
-import { createMemoryStorage } from "./lib/storage";
-
-// Storage key predates the "thread parking" name — keep it so existing
-// persisted notes survive the rename.
-export const THREAD_PARKING_STORAGE_KEY = "t3code:thread-handoff:v1";
-
-export interface ThreadParkingNote {
-  goal: string;
-  nextStep: string;
-  threadTitle: string | null;
-  createdAt: string;
-}
 
 export interface PendingParkingPrompt {
+  threadRef: ScopedThreadRef;
   threadKey: string;
   threadTitle: string | null;
 }
 
-interface ThreadParkingState {
-  /** Persisted: submitted parked notes, keyed by scoped thread key. */
-  notesByThreadKey: Record<string, ThreadParkingNote>;
-  /** Session-only: the thread the user just left and should be prompted about. */
+interface ThreadParkingStore {
+  /** The thread the user just left and should be prompted about. */
   pendingPrompt: PendingParkingPrompt | null;
-  /** Session-only: threads the user interacted with during the current visit. */
+  /** Threads the user interacted with during the current visit. */
   interactedThreadKeys: Record<string, true>;
-}
-
-interface ThreadParkingStore extends ThreadParkingState {
   beginThreadVisit: (threadKey: string) => void;
-  endThreadVisit: (threadKey: string, threadTitle: string | null) => void;
+  endThreadVisit: (threadRef: ScopedThreadRef, threadTitle: string | null) => void;
   markThreadInteraction: (threadKey: string) => void;
-  submitParkingNote: (note: { goal: string; nextStep: string }) => void;
   skipParkingPrompt: () => void;
-  dismissParkingNote: (threadKey: string) => void;
 }
 
-function sanitizeNotes(value: unknown): Record<string, ThreadParkingNote> {
-  if (!value || typeof value !== "object") {
-    return {};
-  }
-  const notes: Record<string, ThreadParkingNote> = {};
-  for (const [threadKey, note] of Object.entries(value)) {
-    if (!threadKey || !note || typeof note !== "object") {
-      continue;
-    }
-    const candidate = note as Partial<ThreadParkingNote>;
-    if (typeof candidate.goal !== "string" || typeof candidate.nextStep !== "string") {
-      continue;
-    }
-    notes[threadKey] = {
-      goal: candidate.goal,
-      nextStep: candidate.nextStep,
-      threadTitle: typeof candidate.threadTitle === "string" ? candidate.threadTitle : null,
-      createdAt: typeof candidate.createdAt === "string" ? candidate.createdAt : "",
-    };
-  }
-  return notes;
-}
-
-export const useThreadParkingStore = create<ThreadParkingStore>()(
-  persist(
-    (set) => ({
-      notesByThreadKey: {},
-      pendingPrompt: null,
-      interactedThreadKeys: {},
-      beginThreadVisit: (threadKey) =>
-        set((state) => {
-          // Returning to the thread the pending prompt is about closes the
-          // hook naturally — drop the prompt instead of asking about it.
-          if (state.pendingPrompt?.threadKey !== threadKey) {
-            return state;
-          }
-          return { pendingPrompt: null };
-        }),
-      endThreadVisit: (threadKey, threadTitle) =>
-        set((state) => {
-          if (state.interactedThreadKeys[threadKey] !== true) {
-            return state;
-          }
-          const interactedThreadKeys = { ...state.interactedThreadKeys };
-          delete interactedThreadKeys[threadKey];
-          return {
-            interactedThreadKeys,
-            pendingPrompt: { threadKey, threadTitle },
-          };
-        }),
-      markThreadInteraction: (threadKey) =>
-        set((state) => {
-          if (state.interactedThreadKeys[threadKey] === true) {
-            return state;
-          }
-          return {
-            interactedThreadKeys: { ...state.interactedThreadKeys, [threadKey]: true },
-          };
-        }),
-      submitParkingNote: ({ goal, nextStep }) =>
-        set((state) => {
-          const prompt = state.pendingPrompt;
-          if (!prompt) {
-            return state;
-          }
-          const trimmedGoal = goal.trim();
-          const trimmedNextStep = nextStep.trim();
-          if (!trimmedGoal && !trimmedNextStep) {
-            return { pendingPrompt: null };
-          }
-          return {
-            pendingPrompt: null,
-            notesByThreadKey: {
-              ...state.notesByThreadKey,
-              [prompt.threadKey]: {
-                goal: trimmedGoal,
-                nextStep: trimmedNextStep,
-                threadTitle: prompt.threadTitle,
-                createdAt: new Date().toISOString(),
-              },
-            },
-          };
-        }),
-      skipParkingPrompt: () =>
-        set((state) => (state.pendingPrompt === null ? state : { pendingPrompt: null })),
-      dismissParkingNote: (threadKey) =>
-        set((state) => {
-          if (!(threadKey in state.notesByThreadKey)) {
-            return state;
-          }
-          const notesByThreadKey = { ...state.notesByThreadKey };
-          delete notesByThreadKey[threadKey];
-          return { notesByThreadKey };
-        }),
+export const useThreadParkingStore = create<ThreadParkingStore>((set) => ({
+  pendingPrompt: null,
+  interactedThreadKeys: {},
+  beginThreadVisit: (threadKey) =>
+    set((state) => {
+      // Returning to the thread the pending prompt is about closes the
+      // hook naturally — drop the prompt instead of asking about it.
+      if (state.pendingPrompt?.threadKey !== threadKey) {
+        return state;
+      }
+      return { pendingPrompt: null };
     }),
-    {
-      name: THREAD_PARKING_STORAGE_KEY,
-      version: 1,
-      storage: createJSONStorage(() =>
-        typeof localStorage !== "undefined" ? localStorage : createMemoryStorage(),
-      ),
-      partialize: (state) => ({ notesByThreadKey: state.notesByThreadKey }),
-      merge: (persisted, current) => ({
-        ...current,
-        notesByThreadKey: sanitizeNotes(
-          (persisted as Partial<ThreadParkingState> | undefined)?.notesByThreadKey,
-        ),
-      }),
-    },
-  ),
-);
+  endThreadVisit: (threadRef, threadTitle) =>
+    set((state) => {
+      const threadKey = scopedThreadKey(threadRef);
+      if (state.interactedThreadKeys[threadKey] !== true) {
+        return state;
+      }
+      const interactedThreadKeys = { ...state.interactedThreadKeys };
+      delete interactedThreadKeys[threadKey];
+      return {
+        interactedThreadKeys,
+        pendingPrompt: { threadRef, threadKey, threadTitle },
+      };
+    }),
+  markThreadInteraction: (threadKey) =>
+    set((state) => {
+      if (state.interactedThreadKeys[threadKey] === true) {
+        return state;
+      }
+      return {
+        interactedThreadKeys: { ...state.interactedThreadKeys, [threadKey]: true },
+      };
+    }),
+  skipParkingPrompt: () =>
+    set((state) => (state.pendingPrompt === null ? state : { pendingPrompt: null })),
+}));
 
 /**
  * Tracks the active thread visit so a parking prompt fires when the user
@@ -179,7 +86,11 @@ export function useThreadParkingTracking(
   titleRef.current = threadTitle;
   const promptRef = useRef(composerPrompt);
   promptRef.current = composerPrompt;
-  const activeVisitRef = useRef<{ threadKey: string; title: string | null } | null>(null);
+  const activeVisitRef = useRef<{
+    threadKey: string;
+    threadRef: ScopedThreadRef;
+    title: string | null;
+  } | null>(null);
   const visitBaselinePromptRef = useRef<string | null>(null);
 
   // Thread titles usually arrive after the visit starts (generated from the
@@ -196,17 +107,19 @@ export function useThreadParkingTracking(
       return;
     }
     if (previousVisit) {
-      endThreadVisit(previousVisit.threadKey, previousVisit.title);
+      endThreadVisit(previousVisit.threadRef, previousVisit.title);
     }
-    if (threadKey) {
+    if (threadKey && threadRef) {
       beginThreadVisit(threadKey);
-      activeVisitRef.current = { threadKey, title: titleRef.current };
+      activeVisitRef.current = { threadKey, threadRef, title: titleRef.current };
       visitBaselinePromptRef.current = promptRef.current;
     } else {
       activeVisitRef.current = null;
       visitBaselinePromptRef.current = null;
     }
-  }, [beginThreadVisit, endThreadVisit, threadKey]);
+    // A recreated-but-equal threadRef is harmless: the early return above
+    // keys the visit on threadKey.
+  }, [beginThreadVisit, endThreadVisit, threadKey, threadRef]);
 
   // Typing in the composer counts as interaction: compare against the draft
   // prompt captured when this visit started. This effect is declared after the
