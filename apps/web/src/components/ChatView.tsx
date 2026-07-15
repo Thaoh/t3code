@@ -93,7 +93,7 @@ import {
   togglePendingUserInputOptionSelection,
   type PendingUserInputDraftAnswer,
 } from "../pendingUserInput";
-import { useThreadHandoffStore } from "../threadHandoffStore";
+import { useThreadParkingStore } from "../threadParkingStore";
 import { useUiStateStore } from "../uiStateStore";
 import {
   buildPlanImplementationThreadTitle,
@@ -212,7 +212,7 @@ import { NoActiveThreadState } from "./NoActiveThreadState";
 import { resolveEffectiveEnvMode } from "./BranchToolbar.logic";
 import { ProviderStatusBanner } from "./chat/ProviderStatusBanner";
 import { ThreadErrorBanner } from "./chat/ThreadErrorBanner";
-import { ThreadHandoffNoteBanner } from "./ThreadHandoffNoteBanner";
+import { ThreadParkingNoteBanner } from "./ThreadParkingNoteBanner";
 import { ComposerBannerStack, type ComposerBannerStackItem } from "./chat/ComposerBannerStack";
 import {
   MAX_HIDDEN_MOUNTED_TERMINAL_THREADS,
@@ -1038,7 +1038,7 @@ function ChatViewContent(props: ChatViewProps) {
   const composerDraftTarget: ScopedThreadRef | DraftId =
     routeKind === "server" ? routeThreadRef : props.draftId;
   const serverThread = useThread(routeKind === "server" ? routeThreadRef : null);
-  const markThreadHandoffInteraction = useThreadHandoffStore(
+  const markThreadParkingInteraction = useThreadParkingStore(
     (store) => store.markThreadInteraction,
   );
   const markThreadVisited = useUiStateStore((store) => store.markThreadVisited);
@@ -3987,7 +3987,7 @@ function ChatViewContent(props: ChatViewProps) {
 
     sendInFlightRef.current = true;
     beginLocalDispatch({ preparingWorktree: Boolean(baseBranchForWorktree) });
-    markThreadHandoffInteraction(
+    markThreadParkingInteraction(
       scopedThreadKey(scopeThreadRef(activeThread.environmentId, threadIdForSend)),
     );
 
@@ -4471,7 +4471,7 @@ function ChatViewContent(props: ChatViewProps) {
 
       sendInFlightRef.current = true;
       beginLocalDispatch({ preparingWorktree: false });
-      markThreadHandoffInteraction(
+      markThreadParkingInteraction(
         scopedThreadKey(scopeThreadRef(activeThread.environmentId, threadIdForSend)),
       );
       setThreadError(threadIdForSend, null);
@@ -4582,7 +4582,7 @@ function ChatViewContent(props: ChatViewProps) {
       isConnecting,
       isSendBusy,
       isServerThread,
-      markThreadHandoffInteraction,
+      markThreadParkingInteraction,
       persistThreadSettingsForNextTurn,
       resetLocalDispatch,
       runtimeMode,
@@ -5080,9 +5080,9 @@ function ChatViewContent(props: ChatViewProps) {
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
             {/* Messages Wrapper */}
             <div className="@container relative flex min-h-0 flex-1 flex-col">
-              {/* Handoff note captured when the user last switched away */}
+              {/* Parked note captured when the user last switched away */}
               {routeKind === "server" ? (
-                <ThreadHandoffNoteBanner threadKey={routeThreadKey} />
+                <ThreadParkingNoteBanner threadKey={routeThreadKey} />
               ) : null}
               {/* Messages — LegendList handles virtualization and scrolling internally */}
               <MessagesTimeline

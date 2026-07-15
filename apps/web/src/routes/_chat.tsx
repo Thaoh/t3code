@@ -16,10 +16,10 @@ import { resolveShortcutCommand } from "../keybindings";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { isPreviewSupportedInRuntime } from "../previewStateStore";
 import { selectActiveRightPanel, useRightPanelStore } from "../rightPanelStore";
-import { useThreadHandoffTracking } from "../threadHandoffStore";
+import { useThreadParkingTracking } from "../threadParkingStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
 import { useThreadSelectionStore } from "../threadSelectionStore";
-import { ThreadHandoffDialog } from "~/components/ThreadHandoffDialog";
+import { ThreadParkingDialog } from "~/components/ThreadParkingDialog";
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
 import { useThread } from "~/state/entities";
 import { primaryServerKeybindingsAtom } from "~/state/server";
@@ -153,7 +153,7 @@ function ChatRouteGlobalShortcuts() {
   return null;
 }
 
-function ChatRouteThreadHandoffTracking() {
+function ChatRouteThreadParkingTracking() {
   const threadParkingNotes = useClientSettings((settings) => settings.threadParkingNotes);
   const routeTarget = useParams({
     strict: false,
@@ -162,7 +162,7 @@ function ChatRouteThreadHandoffTracking() {
   const routeThreadRef =
     threadParkingNotes && routeTarget?.kind === "server" ? routeTarget.threadRef : null;
   const activeThread = useThread(routeThreadRef);
-  useThreadHandoffTracking(routeThreadRef, activeThread?.title ?? null);
+  useThreadParkingTracking(routeThreadRef, activeThread?.title ?? null);
   return null;
 }
 
@@ -170,8 +170,8 @@ function ChatRouteLayout() {
   return (
     <>
       <ChatRouteGlobalShortcuts />
-      <ChatRouteThreadHandoffTracking />
-      <ThreadHandoffDialog />
+      <ChatRouteThreadParkingTracking />
+      <ThreadParkingDialog />
       <Outlet />
     </>
   );

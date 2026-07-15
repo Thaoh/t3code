@@ -1,16 +1,16 @@
 import { NotebookPenIcon, XIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { useClientSettings } from "../hooks/useSettings";
-import { useThreadHandoffStore } from "../threadHandoffStore";
+import { useThreadParkingStore } from "../threadParkingStore";
 
 /**
- * Floating recap of the handoff note captured when the user last left this
+ * Floating recap of the parked note captured when the user last left this
  * thread. Hovers above the chat until dismissed.
  */
-export function ThreadHandoffNoteBanner({ threadKey }: { threadKey: string }) {
+export function ThreadParkingNoteBanner({ threadKey }: { threadKey: string }) {
   const threadParkingNotes = useClientSettings((settings) => settings.threadParkingNotes);
-  const note = useThreadHandoffStore((store) => store.notesByThreadKey[threadKey] ?? null);
-  const dismissHandoffNote = useThreadHandoffStore((store) => store.dismissHandoffNote);
+  const note = useThreadParkingStore((store) => store.notesByThreadKey[threadKey] ?? null);
+  const dismissParkingNote = useThreadParkingStore((store) => store.dismissParkingNote);
 
   if (!threadParkingNotes || !note) {
     return null;
@@ -45,7 +45,7 @@ export function ThreadHandoffNoteBanner({ threadKey }: { threadKey: string }) {
           variant="ghost"
           aria-label="Dismiss note"
           className="-mr-1.5 -mt-1 shrink-0"
-          onClick={() => dismissHandoffNote(threadKey)}
+          onClick={() => dismissParkingNote(threadKey)}
         >
           <XIcon />
         </Button>

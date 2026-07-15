@@ -11,11 +11,11 @@ import {
 } from "~/components/ui/dialog";
 import { Textarea } from "~/components/ui/textarea";
 import { useClientSettings } from "../hooks/useSettings";
-import { useThreadHandoffStore } from "../threadHandoffStore";
+import { useThreadParkingStore } from "../threadParkingStore";
 
-function ThreadHandoffForm({ threadTitle }: { threadTitle: string | null }) {
-  const submitHandoffNote = useThreadHandoffStore((store) => store.submitHandoffNote);
-  const skipHandoffPrompt = useThreadHandoffStore((store) => store.skipHandoffPrompt);
+function ThreadParkingForm({ threadTitle }: { threadTitle: string | null }) {
+  const submitParkingNote = useThreadParkingStore((store) => store.submitParkingNote);
+  const skipParkingPrompt = useThreadParkingStore((store) => store.skipParkingPrompt);
   const [goal, setGoal] = useState("");
   const [nextStep, setNextStep] = useState("");
 
@@ -23,7 +23,7 @@ function ThreadHandoffForm({ threadTitle }: { threadTitle: string | null }) {
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        submitHandoffNote({ goal, nextStep });
+        submitParkingNote({ goal, nextStep });
       }}
       className="contents"
     >
@@ -53,7 +53,7 @@ function ThreadHandoffForm({ threadTitle }: { threadTitle: string | null }) {
         />
       </DialogPanel>
       <DialogFooter variant="bare">
-        <Button type="button" variant="ghost" onClick={skipHandoffPrompt}>
+        <Button type="button" variant="ghost" onClick={skipParkingPrompt}>
           Skip
         </Button>
         <Button type="submit" disabled={goal.trim().length === 0 && nextStep.trim().length === 0}>
@@ -69,10 +69,10 @@ function ThreadHandoffForm({ threadTitle }: { threadTitle: string | null }) {
  * were working in, ask what they were doing and what comes next. The answers
  * float above the chat when they return to that thread.
  */
-export function ThreadHandoffDialog() {
+export function ThreadParkingDialog() {
   const threadParkingNotes = useClientSettings((settings) => settings.threadParkingNotes);
-  const pendingPrompt = useThreadHandoffStore((store) => store.pendingPrompt);
-  const skipHandoffPrompt = useThreadHandoffStore((store) => store.skipHandoffPrompt);
+  const pendingPrompt = useThreadParkingStore((store) => store.pendingPrompt);
+  const skipParkingPrompt = useThreadParkingStore((store) => store.skipParkingPrompt);
 
   if (!threadParkingNotes) {
     return null;
@@ -83,13 +83,13 @@ export function ThreadHandoffDialog() {
       open={pendingPrompt !== null}
       onOpenChange={(open) => {
         if (!open) {
-          skipHandoffPrompt();
+          skipParkingPrompt();
         }
       }}
     >
       {pendingPrompt !== null ? (
         <DialogPopup showCloseButton={false}>
-          <ThreadHandoffForm
+          <ThreadParkingForm
             key={pendingPrompt.threadKey}
             threadTitle={pendingPrompt.threadTitle}
           />

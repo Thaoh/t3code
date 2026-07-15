@@ -6,48 +6,50 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { useComposerDraftStore } from "./composerDraftStore";
 import { createMemoryStorage } from "./lib/storage";
 
-export const THREAD_HANDOFF_STORAGE_KEY = "t3code:thread-handoff:v1";
+// Storage key predates the "thread parking" name — keep it so existing
+// persisted notes survive the rename.
+export const THREAD_PARKING_STORAGE_KEY = "t3code:thread-handoff:v1";
 
-export interface ThreadHandoffNote {
+export interface ThreadParkingNote {
   goal: string;
   nextStep: string;
   threadTitle: string | null;
   createdAt: string;
 }
 
-export interface PendingHandoffPrompt {
+export interface PendingParkingPrompt {
   threadKey: string;
   threadTitle: string | null;
 }
 
-interface ThreadHandoffState {
-  /** Persisted: submitted handoff notes, keyed by scoped thread key. */
-  notesByThreadKey: Record<string, ThreadHandoffNote>;
+interface ThreadParkingState {
+  /** Persisted: submitted parked notes, keyed by scoped thread key. */
+  notesByThreadKey: Record<string, ThreadParkingNote>;
   /** Session-only: the thread the user just left and should be prompted about. */
-  pendingPrompt: PendingHandoffPrompt | null;
+  pendingPrompt: PendingParkingPrompt | null;
   /** Session-only: threads the user interacted with during the current visit. */
   interactedThreadKeys: Record<string, true>;
 }
 
-interface ThreadHandoffStore extends ThreadHandoffState {
+interface ThreadParkingStore extends ThreadParkingState {
   beginThreadVisit: (threadKey: string) => void;
   endThreadVisit: (threadKey: string, threadTitle: string | null) => void;
   markThreadInteraction: (threadKey: string) => void;
-  submitHandoffNote: (note: { goal: string; nextStep: string }) => void;
-  skipHandoffPrompt: () => void;
-  dismissHandoffNote: (threadKey: string) => void;
+  submitParkingNote: (note: { goal: string; nextStep: string }) => void;
+  skipParkingPrompt: () => void;
+  dismissParkingNote: (threadKey: string) => void;
 }
 
-function sanitizeNotes(value: unknown): Record<string, ThreadHandoffNote> {
+function sanitizeNotes(value: unknown): Record<string, ThreadParkingNote> {
   if (!value || typeof value !== "object") {
     return {};
   }
-  const notes: Record<string, ThreadHandoffNote> = {};
+  const notes: Record<string, ThreadParkingNote> = {};
   for (const [threadKey, note] of Object.entries(value)) {
     if (!threadKey || !note || typeof note !== "object") {
       continue;
     }
-    const candidate = note as Partial<ThreadHandoffNote>;
+    const candidate = note as Partial<ThreadParkingNote>;
     if (typeof candidate.goal !== "string" || typeof candidate.nextStep !== "string") {
       continue;
     }
@@ -61,7 +63,7 @@ function sanitizeNotes(value: unknown): Record<string, ThreadHandoffNote> {
   return notes;
 }
 
-export const useThreadHandoffStore = create<ThreadHandoffStore>()(
+export const useThreadParkingStore = create<ThreadParkingStore>()(
   persist(
     (set) => ({
       notesByThreadKey: {},
@@ -97,7 +99,7 @@ export const useThreadHandoffStore = create<ThreadHandoffStore>()(
             interactedThreadKeys: { ...state.interactedThreadKeys, [threadKey]: true },
           };
         }),
-      submitHandoffNote: ({ goal, nextStep }) =>
+      submitParkingNote: ({ goal, nextStep }) =>
         set((state) => {
           const prompt = state.pendingPrompt;
           if (!prompt) {
@@ -121,9 +123,9 @@ export const useThreadHandoffStore = create<ThreadHandoffStore>()(
             },
           };
         }),
-      skipHandoffPrompt: () =>
+      skipParkingPrompt: () =>
         set((state) => (state.pendingPrompt === null ? state : { pendingPrompt: null })),
-      dismissHandoffNote: (threadKey) =>
+      dismissParkingNote: (threadKey) =>
         set((state) => {
           if (!(threadKey in state.notesByThreadKey)) {
             return state;
@@ -134,7 +136,7 @@ export const useThreadHandoffStore = create<ThreadHandoffStore>()(
         }),
     }),
     {
-      name: THREAD_HANDOFF_STORAGE_KEY,
+      name: THREAD_PARKING_STORAGE_KEY,
       version: 1,
       storage: createJSONStorage(() =>
         typeof localStorage !== "undefined" ? localStorage : createMemoryStorage(),
@@ -143,7 +145,7 @@ export const useThreadHandoffStore = create<ThreadHandoffStore>()(
       merge: (persisted, current) => ({
         ...current,
         notesByThreadKey: sanitizeNotes(
-          (persisted as Partial<ThreadHandoffState> | undefined)?.notesByThreadKey,
+          (persisted as Partial<ThreadParkingState> | undefined)?.notesByThreadKey,
         ),
       }),
     },
@@ -151,7 +153,7 @@ export const useThreadHandoffStore = create<ThreadHandoffStore>()(
 );
 
 /**
- * Tracks the active thread visit so a handoff prompt fires when the user
+ * Tracks the active thread visit so a parking prompt fires when the user
  * switches away from a thread they interacted with (sent a message or typed
  * in the composer during this visit).
  *
@@ -160,13 +162,13 @@ export const useThreadHandoffStore = create<ThreadHandoffStore>()(
  * cleanup, so StrictMode double-effects and remount churn during draft-thread
  * promotion never register phantom visits.
  */
-export function useThreadHandoffTracking(
+export function useThreadParkingTracking(
   threadRef: ScopedThreadRef | null,
   threadTitle: string | null,
 ): void {
-  const beginThreadVisit = useThreadHandoffStore((store) => store.beginThreadVisit);
-  const endThreadVisit = useThreadHandoffStore((store) => store.endThreadVisit);
-  const markThreadInteraction = useThreadHandoffStore((store) => store.markThreadInteraction);
+  const beginThreadVisit = useThreadParkingStore((store) => store.beginThreadVisit);
+  const endThreadVisit = useThreadParkingStore((store) => store.endThreadVisit);
+  const markThreadInteraction = useThreadParkingStore((store) => store.markThreadInteraction);
   const threadKey = threadRef ? scopedThreadKey(threadRef) : null;
 
   const composerPrompt = useComposerDraftStore((store) =>
