@@ -1,4 +1,4 @@
-import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { Outlet, createFileRoute, redirect, useParams } from "@tanstack/react-router";
 import { useAtomValue } from "@effect/atom-react";
 import { useEffect } from "react";
 
@@ -15,8 +15,12 @@ import { resolveShortcutCommand } from "../keybindings";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { isPreviewSupportedInRuntime } from "../previewStateStore";
 import { selectActiveRightPanel, useRightPanelStore } from "../rightPanelStore";
+import { useThreadHandoffTracking } from "../threadHandoffStore";
+import { resolveThreadRouteTarget } from "../threadRoutes";
 import { useThreadSelectionStore } from "../threadSelectionStore";
+import { ThreadHandoffDialog } from "~/components/ThreadHandoffDialog";
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
+import { useThread } from "~/state/entities";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 
 function ChatRouteGlobalShortcuts() {
@@ -148,10 +152,23 @@ function ChatRouteGlobalShortcuts() {
   return null;
 }
 
+function ChatRouteThreadHandoffTracking() {
+  const routeTarget = useParams({
+    strict: false,
+    select: (params) => resolveThreadRouteTarget(params),
+  });
+  const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
+  const activeThread = useThread(routeThreadRef);
+  useThreadHandoffTracking(routeThreadRef, activeThread?.title ?? null);
+  return null;
+}
+
 function ChatRouteLayout() {
   return (
     <>
       <ChatRouteGlobalShortcuts />
+      <ChatRouteThreadHandoffTracking />
+      <ThreadHandoffDialog />
       <Outlet />
     </>
   );
