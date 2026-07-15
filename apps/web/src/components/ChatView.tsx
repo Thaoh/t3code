@@ -5079,7 +5079,7 @@ function ChatViewContent(props: ChatViewProps) {
           {/* Chat column */}
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
             {/* Messages Wrapper */}
-            <div className="relative flex min-h-0 flex-1 flex-col">
+            <div className="@container relative flex min-h-0 flex-1 flex-col">
               {/* Handoff note captured when the user last switched away */}
               {routeKind === "server" ? (
                 <ThreadHandoffNoteBanner threadKey={routeThreadKey} />

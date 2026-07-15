@@ -15,11 +15,14 @@ export function ThreadHandoffNoteBanner({ threadKey }: { threadKey: string }) {
   }
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-3 z-30 flex justify-center px-4">
+    // In flow above the chat by default so it never covers messages; on chat
+    // columns wide enough for the timeline's side gutter to fit the card
+    // (max-w-3xl content + w-80 card + margins), float it in the right gutter.
+    <div className="z-30 flex shrink-0 justify-center px-4 pt-3 @min-[92rem]:absolute @min-[92rem]:top-3 @min-[92rem]:right-4 @min-[92rem]:block @min-[92rem]:w-80 @min-[92rem]:p-0">
       <div
         role="note"
         aria-label="Where you left off"
-        className="pointer-events-auto flex w-full max-w-xl items-start gap-3 rounded-xl border border-primary/24 bg-[color-mix(in_srgb,var(--popover)_94%,var(--primary))] px-4 py-3 text-popover-foreground shadow-lg ring-1 ring-black/8 dark:ring-white/8"
+        className="flex w-full max-w-xl items-start gap-3 rounded-xl border border-primary/24 bg-[color-mix(in_srgb,var(--popover)_94%,var(--primary))] px-4 py-3 text-popover-foreground shadow-lg ring-1 ring-black/8 @min-[92rem]:max-w-none dark:ring-white/8"
       >
         <NotebookPenIcon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
         <div className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
