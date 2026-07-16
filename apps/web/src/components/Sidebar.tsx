@@ -7,6 +7,7 @@ import {
   FolderPlusIcon,
   Globe2Icon,
   LoaderIcon,
+  NotebookPenIcon,
   SearchIcon,
   SettingsIcon,
   SquarePenIcon,
@@ -1111,7 +1112,17 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
     (settings) => settings.confirmThreadArchive,
   );
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
+  const threadParkingNotesEnabled = useClientSettings<boolean>(
+    (settings) => settings.threadParkingNotes,
+  );
   const serverConfigs = useServerConfigs();
+  // Only flag environments whose config we have actually received: an absent
+  // config means "still connecting", not "old server".
+  const projectServerConfig = serverConfigs.get(project.environmentId);
+  const threadParkingUnsupported =
+    threadParkingNotesEnabled &&
+    projectServerConfig !== undefined &&
+    !projectServerConfig.environment.capabilities.threadParkingNotes;
   const deleteProject = useAtomCommand(projectEnvironment.delete, {
     reportFailure: false,
   });
@@ -2252,6 +2263,24 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
               <span className="shrink-0 text-[10px] text-muted-foreground/60">
                 {project.groupedProjectCount} projects
               </span>
+            ) : null}
+            {threadParkingUnsupported ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <span
+                      aria-label="Thread parking notes are not synced on this server"
+                      className="inline-flex shrink-0 items-center text-warning/80"
+                    />
+                  }
+                >
+                  <NotebookPenIcon className="size-3" />
+                </TooltipTrigger>
+                <TooltipPopup side="top">
+                  Thread parking notes stay on this device — this project&apos;s server predates
+                  synced parking notes. Update the server to sync them.
+                </TooltipPopup>
+              </Tooltip>
             ) : null}
           </span>
         </SidebarMenuButton>

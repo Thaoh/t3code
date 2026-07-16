@@ -252,6 +252,7 @@ describe("remote environment authorization", () => {
             serverVersion: "0.0.0-test",
             capabilities: {
               repositoryIdentity: true,
+              threadParkingNotes: true,
             },
           },
           { status: 200 },

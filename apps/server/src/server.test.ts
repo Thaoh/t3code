@@ -131,6 +131,7 @@ const testEnvironmentDescriptor = {
   serverVersion: "0.0.0-test",
   capabilities: {
     repositoryIdentity: true,
+    threadParkingNotes: true,
   },
 };
 const makeDefaultOrchestrationReadModel = () => {
