@@ -1,14 +1,26 @@
+import { useEffect } from "react";
 import { NotebookPenIcon, XIcon } from "lucide-react";
 import type { ScopedThreadRef, ThreadParkedNote } from "@t3tools/contracts";
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { Button } from "~/components/ui/button";
 import { useClientSettings } from "../hooks/useSettings";
+import { useServerConfigs } from "../state/entities";
 import { threadEnvironment } from "../state/threads";
 import { useAtomCommand } from "../state/use-atom-command";
+import {
+  resolveDisplayedParkedNote,
+  shouldPushLocalNote,
+  useThreadParkingStore,
+} from "../threadParkingStore";
 
 /**
  * Floating recap of the parked note captured when the user last left this
- * thread. Hovers above the chat until dismissed; the note lives on the
- * thread server-side, so dismissing it clears it for every client.
+ * thread. Hovers above the chat until dismissed.
+ *
+ * Notes live on the thread server-side when the environment supports it;
+ * notes captured against older servers are stored on this device and shown
+ * the same way. When both exist the most recent wins, and a local note is
+ * pushed up (then dropped) once the server advertises parking support.
  */
 export function ThreadParkingNoteBanner({
   threadRef,
@@ -18,13 +30,69 @@ export function ThreadParkingNoteBanner({
   parkedNote: ThreadParkedNote | null;
 }) {
   const threadParkingNotes = useClientSettings((settings) => settings.threadParkingNotes);
+  const threadKey = scopedThreadKey(threadRef);
+  const localNote = useThreadParkingStore(
+    (store) => store.localNotesByThreadKey[threadKey] ?? null,
+  );
+  const clearLocalNote = useThreadParkingStore((store) => store.clearLocalNote);
+  const serverConfigs = useServerConfigs();
+  const serverSupportsParking =
+    serverConfigs.get(threadRef.environmentId)?.environment.capabilities.threadParkingNotes ===
+    true;
   const updateThreadMetadata = useAtomCommand(threadEnvironment.updateMetadata, {
     reportFailure: false,
   });
 
-  if (!threadParkingNotes || !parkedNote) {
+  // Reconcile a local fallback note once the server can hold it: push the
+  // local note when it is the newest, otherwise the server note wins and the
+  // local copy is dropped.
+  useEffect(() => {
+    if (!threadParkingNotes || !serverSupportsParking || localNote === null) {
+      return;
+    }
+    if (!shouldPushLocalNote(parkedNote, localNote)) {
+      clearLocalNote(threadKey);
+      return;
+    }
+    let cancelled = false;
+    void updateThreadMetadata({
+      environmentId: threadRef.environmentId,
+      input: { threadId: threadRef.threadId, parkedNote: localNote },
+    }).then((result) => {
+      if (!cancelled && result._tag === "Success") {
+        clearLocalNote(threadKey);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    clearLocalNote,
+    localNote,
+    parkedNote,
+    serverSupportsParking,
+    threadKey,
+    threadParkingNotes,
+    threadRef.environmentId,
+    threadRef.threadId,
+    updateThreadMetadata,
+  ]);
+
+  const note = resolveDisplayedParkedNote(parkedNote, localNote);
+
+  if (!threadParkingNotes || !note) {
     return null;
   }
+
+  const dismissNote = () => {
+    clearLocalNote(threadKey);
+    if (parkedNote !== null && serverSupportsParking) {
+      void updateThreadMetadata({
+        environmentId: threadRef.environmentId,
+        input: { threadId: threadRef.threadId, parkedNote: null },
+      });
+    }
+  };
 
   return (
     // In flow above the chat by default so it never covers messages; on chat
@@ -39,14 +107,14 @@ export function ThreadParkingNoteBanner({
         <NotebookPenIcon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
         <div className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
           <span className="font-medium">Where you left off</span>
-          {parkedNote.goal ? (
+          {note.goal ? (
             <p className="min-w-0 break-words text-muted-foreground">
-              Trying to do: <span className="text-foreground">{parkedNote.goal}</span>
+              Trying to do: <span className="text-foreground">{note.goal}</span>
             </p>
           ) : null}
-          {parkedNote.nextStep ? (
+          {note.nextStep ? (
             <p className="min-w-0 break-words text-muted-foreground">
-              Next step: <span className="text-foreground">{parkedNote.nextStep}</span>
+              Next step: <span className="text-foreground">{note.nextStep}</span>
             </p>
           ) : null}
         </div>
@@ -55,12 +123,7 @@ export function ThreadParkingNoteBanner({
           variant="ghost"
           aria-label="Dismiss note"
           className="-mr-1.5 -mt-1 shrink-0"
-          onClick={() =>
-            void updateThreadMetadata({
-              environmentId: threadRef.environmentId,
-              input: { threadId: threadRef.threadId, parkedNote: null },
-            })
-          }
+          onClick={dismissNote}
         >
           <XIcon />
         </Button>

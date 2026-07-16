@@ -12,9 +12,11 @@ import {
 } from "~/components/ui/dialog";
 import { Textarea } from "~/components/ui/textarea";
 import { useClientSettings } from "../hooks/useSettings";
+import { useServerConfigs } from "../state/entities";
 import { threadEnvironment } from "../state/threads";
 import { useAtomCommand } from "../state/use-atom-command";
 import { useThreadParkingStore } from "../threadParkingStore";
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 
 function ThreadParkingForm({
   threadRef,
@@ -24,6 +26,11 @@ function ThreadParkingForm({
   threadTitle: string | null;
 }) {
   const skipParkingPrompt = useThreadParkingStore((store) => store.skipParkingPrompt);
+  const setLocalNote = useThreadParkingStore((store) => store.setLocalNote);
+  const serverConfigs = useServerConfigs();
+  const serverSupportsParking =
+    serverConfigs.get(threadRef.environmentId)?.environment.capabilities.threadParkingNotes ===
+    true;
   const updateThreadMetadata = useAtomCommand(threadEnvironment.updateMetadata, {
     reportFailure: false,
   });
@@ -37,17 +44,24 @@ function ThreadParkingForm({
         const trimmedGoal = goal.trim();
         const trimmedNextStep = nextStep.trim();
         if (trimmedGoal || trimmedNextStep) {
-          void updateThreadMetadata({
-            environmentId: threadRef.environmentId,
-            input: {
-              threadId: threadRef.threadId,
-              parkedNote: {
-                goal: trimmedGoal,
-                nextStep: trimmedNextStep,
-                createdAt: new Date().toISOString(),
+          const parkedNote = {
+            goal: trimmedGoal,
+            nextStep: trimmedNextStep,
+            createdAt: new Date().toISOString(),
+          };
+          if (serverSupportsParking) {
+            void updateThreadMetadata({
+              environmentId: threadRef.environmentId,
+              input: {
+                threadId: threadRef.threadId,
+                parkedNote,
               },
-            },
-          });
+            });
+          } else {
+            // Server predates synced parking notes — keep the note on this
+            // device; it reconciles up once the server advertises support.
+            setLocalNote(scopedThreadKey(threadRef), parkedNote);
+          }
         }
         skipParkingPrompt();
       }}

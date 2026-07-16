@@ -2269,7 +2269,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
                 <TooltipTrigger
                   render={
                     <span
-                      aria-label="Thread parking notes are not synced on this server"
+                      aria-label="Thread parking notes are stored on this device for this project"
                       className="inline-flex shrink-0 items-center text-warning/80"
                     />
                   }
@@ -2277,8 +2277,8 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
                   <NotebookPenIcon className="size-3" />
                 </TooltipTrigger>
                 <TooltipPopup side="top">
-                  Thread parking notes stay on this device — this project&apos;s server predates
-                  synced parking notes. Update the server to sync them.
+                  Parking notes for this project are stored on this device — the server predates
+                  synced notes. They sync up automatically once the server is updated.
                 </TooltipPopup>
               </Tooltip>
             ) : null}
