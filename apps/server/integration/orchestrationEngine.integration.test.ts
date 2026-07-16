@@ -625,6 +625,58 @@ it.live("tracks approval requests and resolves pending approvals on user respons
   ),
 );
 
+it.live("persists and clears thread parking notes through meta updates", () =>
+  withHarness((harness) =>
+    Effect.gen(function* () {
+      yield* seedProjectAndThread(harness);
+
+      yield* harness.engine.dispatch({
+        type: "thread.meta.update",
+        commandId: CommandId.make("cmd-park-note-set"),
+        threadId: THREAD_ID,
+        parkedNote: {
+          goal: "Renaming the config module",
+          nextStep: "Update the server imports",
+          createdAt: nowIso(),
+        },
+      });
+
+      const parkedShell = yield* harness.snapshotQuery.getThreadShellById(THREAD_ID);
+      assert.equal(Option.isSome(parkedShell), true);
+      if (Option.isSome(parkedShell)) {
+        assert.deepEqual(parkedShell.value.parkedNote, {
+          goal: "Renaming the config module",
+          nextStep: "Update the server imports",
+          createdAt: nowIso(),
+        });
+      }
+
+      const parkedDetail = yield* harness.snapshotQuery.getThreadDetailById(THREAD_ID);
+      assert.equal(Option.isSome(parkedDetail), true);
+      if (Option.isSome(parkedDetail)) {
+        assert.deepEqual(parkedDetail.value.parkedNote, {
+          goal: "Renaming the config module",
+          nextStep: "Update the server imports",
+          createdAt: nowIso(),
+        });
+      }
+
+      yield* harness.engine.dispatch({
+        type: "thread.meta.update",
+        commandId: CommandId.make("cmd-park-note-clear"),
+        threadId: THREAD_ID,
+        parkedNote: null,
+      });
+
+      const clearedShell = yield* harness.snapshotQuery.getThreadShellById(THREAD_ID);
+      assert.equal(Option.isSome(clearedShell), true);
+      if (Option.isSome(clearedShell)) {
+        assert.equal(clearedShell.value.parkedNote, null);
+      }
+    }),
+  ),
+);
+
 it.live("records failed turn runtime state and checkpoint status as error", () =>
   withHarness((harness) =>
     Effect.gen(function* () {
