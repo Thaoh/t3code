@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { NotebookPenIcon, XIcon } from "lucide-react";
 import type { ScopedThreadRef, ThreadParkedNote } from "@t3tools/contracts";
 import { scopedThreadKey } from "@t3tools/client-runtime/environment";
@@ -7,11 +6,7 @@ import { useClientSettings } from "../hooks/useSettings";
 import { useServerConfigs } from "../state/entities";
 import { threadEnvironment } from "../state/threads";
 import { useAtomCommand } from "../state/use-atom-command";
-import {
-  resolveDisplayedParkedNote,
-  shouldPushLocalNote,
-  useThreadParkingStore,
-} from "../threadParkingStore";
+import { resolveDisplayedParkedNote, useThreadParkingStore } from "../threadParkingStore";
 
 /**
  * Floating recap of the parked note captured when the user last left this
@@ -43,41 +38,8 @@ export function ThreadParkingNoteBanner({
     reportFailure: false,
   });
 
-  // Reconcile a local fallback note once the server can hold it: push the
-  // local note when it is the newest, otherwise the server note wins and the
-  // local copy is dropped.
-  useEffect(() => {
-    if (!threadParkingNotes || !serverSupportsParking || localNote === null) {
-      return;
-    }
-    if (!shouldPushLocalNote(parkedNote, localNote)) {
-      clearLocalNote(threadKey);
-      return;
-    }
-    let cancelled = false;
-    void updateThreadMetadata({
-      environmentId: threadRef.environmentId,
-      input: { threadId: threadRef.threadId, parkedNote: localNote },
-    }).then((result) => {
-      if (!cancelled && result._tag === "Success") {
-        clearLocalNote(threadKey);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    clearLocalNote,
-    localNote,
-    parkedNote,
-    serverSupportsParking,
-    threadKey,
-    threadParkingNotes,
-    threadRef.environmentId,
-    threadRef.threadId,
-    updateThreadMetadata,
-  ]);
-
+  // Local-note reconciliation happens in useThreadParkingSweep (mounted in
+  // the chat layout); this banner only resolves what to display.
   const note = resolveDisplayedParkedNote(parkedNote, localNote);
 
   if (!threadParkingNotes || !note) {

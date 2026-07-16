@@ -1,10 +1,14 @@
 import type { ScopedThreadRef, ThreadParkedNote } from "@t3tools/contracts";
-import { scopedThreadKey } from "@t3tools/client-runtime/environment";
-import { useEffect, useRef } from "react";
+import { parseScopedThreadKey, scopedThreadKey } from "@t3tools/client-runtime/environment";
+import { useEffect, useMemo, useRef } from "react";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { useComposerDraftStore } from "./composerDraftStore";
+import { useClientSettings } from "./hooks/useSettings";
 import { createMemoryStorage } from "./lib/storage";
+import { readThreadShell, useServerConfigs, useThreadRefs } from "./state/entities";
+import { threadEnvironment } from "./state/threads";
+import { useAtomCommand } from "./state/use-atom-command";
 
 // Key predates the "thread parking" name — keeping it also resurrects notes
 // saved by the localStorage-only builds of this feature.
@@ -249,4 +253,92 @@ export function useThreadParkingTracking(
       markThreadInteraction(threadKey);
     }
   }, [composerPrompt, markThreadInteraction, threadKey]);
+}
+
+/**
+ * Drains device-local parking notes up to their servers. Event-driven, never
+ * timed: the sweep can only do work when an environment that we hold local
+ * notes for advertises parking support, so it re-evaluates exactly when that
+ * state changes — a server config arriving or changing (connect, reconnect
+ * after upgrade), thread shells syncing in, or the local note set changing.
+ * Once drained there is nothing left to justify a run; new local notes are
+ * only created against incapable servers, so they wait for the next
+ * capability edge. Failed pushes stay local and retry on the next edge.
+ *
+ * Mount once in a layout that survives thread navigation.
+ */
+export function useThreadParkingSweep(): void {
+  const threadParkingNotes = useClientSettings((settings) => settings.threadParkingNotes);
+  const serverConfigs = useServerConfigs();
+  const localNotesByThreadKey = useThreadParkingStore((store) => store.localNotesByThreadKey);
+  const clearLocalNote = useThreadParkingStore((store) => store.clearLocalNote);
+  const updateThreadMetadata = useAtomCommand(threadEnvironment.updateMetadata, {
+    reportFailure: false,
+  });
+  // Shell arrival matters: a capable environment's threads may not have
+  // synced yet when its config lands, and pushing without the server note
+  // could clobber a newer one. Depending on the ref list re-runs the sweep
+  // as shells stream in.
+  const threadRefs = useThreadRefs();
+
+  const capableEnvironmentsKey = useMemo(() => {
+    const ids: string[] = [];
+    for (const [environmentId, config] of serverConfigs) {
+      if (config.environment.capabilities.threadParkingNotes) {
+        ids.push(environmentId);
+      }
+    }
+    return ids.sort().join("|");
+  }, [serverConfigs]);
+
+  const inFlightThreadKeysRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (!threadParkingNotes) {
+      return;
+    }
+    const capableEnvironmentIds = new Set(capableEnvironmentsKey.split("|").filter(Boolean));
+    if (capableEnvironmentIds.size === 0) {
+      return;
+    }
+    for (const [threadKey, localNote] of Object.entries(localNotesByThreadKey)) {
+      if (inFlightThreadKeysRef.current.has(threadKey)) {
+        continue;
+      }
+      const threadRef = parseScopedThreadKey(threadKey);
+      if (!threadRef || !capableEnvironmentIds.has(threadRef.environmentId)) {
+        continue;
+      }
+      const shell = readThreadShell(threadRef);
+      if (shell === null) {
+        // Thread not synced (or gone). Wait for shells rather than pushing
+        // blind — the effect re-runs when the environment's refs arrive.
+        continue;
+      }
+      if (!shouldPushLocalNote(shell.parkedNote, localNote)) {
+        clearLocalNote(threadKey);
+        continue;
+      }
+      inFlightThreadKeysRef.current.add(threadKey);
+      void updateThreadMetadata({
+        environmentId: threadRef.environmentId,
+        input: { threadId: threadRef.threadId, parkedNote: localNote },
+      })
+        .then((result) => {
+          if (result._tag === "Success") {
+            clearLocalNote(threadKey);
+          }
+        })
+        .finally(() => {
+          inFlightThreadKeysRef.current.delete(threadKey);
+        });
+    }
+  }, [
+    capableEnvironmentsKey,
+    clearLocalNote,
+    localNotesByThreadKey,
+    threadParkingNotes,
+    threadRefs,
+    updateThreadMetadata,
+  ]);
 }

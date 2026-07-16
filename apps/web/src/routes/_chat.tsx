@@ -16,7 +16,7 @@ import { resolveShortcutCommand } from "../keybindings";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { isPreviewSupportedInRuntime } from "../previewStateStore";
 import { selectActiveRightPanel, useRightPanelStore } from "../rightPanelStore";
-import { useThreadParkingTracking } from "../threadParkingStore";
+import { useThreadParkingSweep, useThreadParkingTracking } from "../threadParkingStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { ThreadParkingDialog } from "~/components/ThreadParkingDialog";
@@ -163,6 +163,7 @@ function ChatRouteThreadParkingTracking() {
     threadParkingNotes && routeTarget?.kind === "server" ? routeTarget.threadRef : null;
   const activeThread = useThread(routeThreadRef);
   useThreadParkingTracking(routeThreadRef, activeThread?.title ?? null);
+  useThreadParkingSweep();
   return null;
 }
 
