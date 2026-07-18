@@ -18,6 +18,7 @@ export interface PendingParkingPrompt {
   threadRef: ScopedThreadRef;
   threadKey: string;
   threadTitle: string | null;
+  projectTitle: string | null;
 }
 
 interface ThreadParkingStore {
@@ -32,7 +33,11 @@ interface ThreadParkingStore {
    */
   localNotesByThreadKey: Record<string, ThreadParkedNote>;
   beginThreadVisit: (threadKey: string) => void;
-  endThreadVisit: (threadRef: ScopedThreadRef, threadTitle: string | null) => void;
+  endThreadVisit: (
+    threadRef: ScopedThreadRef,
+    threadTitle: string | null,
+    projectTitle: string | null,
+  ) => void;
   markThreadInteraction: (threadKey: string) => void;
   skipParkingPrompt: () => void;
   setLocalNote: (threadKey: string, note: ThreadParkedNote) => void;
@@ -110,7 +115,7 @@ export const useThreadParkingStore = create<ThreadParkingStore>()(
           }
           return { pendingPrompt: null };
         }),
-      endThreadVisit: (threadRef, threadTitle) =>
+      endThreadVisit: (threadRef, threadTitle, projectTitle) =>
         set((state) => {
           const threadKey = scopedThreadKey(threadRef);
           if (state.interactedThreadKeys[threadKey] !== true) {
@@ -120,7 +125,7 @@ export const useThreadParkingStore = create<ThreadParkingStore>()(
           delete interactedThreadKeys[threadKey];
           return {
             interactedThreadKeys,
-            pendingPrompt: { threadRef, threadKey, threadTitle },
+            pendingPrompt: { threadRef, threadKey, threadTitle, projectTitle },
           };
         }),
       markThreadInteraction: (threadKey) =>
@@ -191,6 +196,7 @@ export const useThreadParkingStore = create<ThreadParkingStore>()(
 export function useThreadParkingTracking(
   threadRef: ScopedThreadRef | null,
   threadTitle: string | null,
+  projectTitle: string | null,
 ): void {
   const beginThreadVisit = useThreadParkingStore((store) => store.beginThreadVisit);
   const endThreadVisit = useThreadParkingStore((store) => store.endThreadVisit);
@@ -203,20 +209,25 @@ export function useThreadParkingTracking(
 
   const titleRef = useRef(threadTitle);
   titleRef.current = threadTitle;
+  const projectTitleRef = useRef(projectTitle);
+  projectTitleRef.current = projectTitle;
   const promptRef = useRef(composerPrompt);
   promptRef.current = composerPrompt;
   const activeVisitRef = useRef<{
     threadKey: string;
     threadRef: ScopedThreadRef;
     title: string | null;
+    projectTitle: string | null;
   } | null>(null);
   const visitBaselinePromptRef = useRef<string | null>(null);
 
   // Thread titles usually arrive after the visit starts (generated from the
-  // first message) — keep the tracked visit's title fresh.
+  // first message) — keep the tracked visit's title fresh. Same for the
+  // project title, which streams in with the environment's project sync.
   useEffect(() => {
     if (activeVisitRef.current && activeVisitRef.current.threadKey === threadKey) {
       activeVisitRef.current.title = threadTitle;
+      activeVisitRef.current.projectTitle = projectTitle;
     }
   });
 
@@ -226,11 +237,16 @@ export function useThreadParkingTracking(
       return;
     }
     if (previousVisit) {
-      endThreadVisit(previousVisit.threadRef, previousVisit.title);
+      endThreadVisit(previousVisit.threadRef, previousVisit.title, previousVisit.projectTitle);
     }
     if (threadKey && threadRef) {
       beginThreadVisit(threadKey);
-      activeVisitRef.current = { threadKey, threadRef, title: titleRef.current };
+      activeVisitRef.current = {
+        threadKey,
+        threadRef,
+        title: titleRef.current,
+        projectTitle: projectTitleRef.current,
+      };
       visitBaselinePromptRef.current = promptRef.current;
     } else {
       activeVisitRef.current = null;

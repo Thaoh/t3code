@@ -1,5 +1,6 @@
 import { Outlet, createFileRoute, redirect, useParams } from "@tanstack/react-router";
 import { useAtomValue } from "@effect/atom-react";
+import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import { useEffect } from "react";
 
 import { isCommandPaletteOpen } from "../commandPaletteContext";
@@ -21,7 +22,7 @@ import { resolveThreadRouteTarget } from "../threadRoutes";
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { ThreadParkingDialog } from "~/components/ThreadParkingDialog";
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
-import { useThread } from "~/state/entities";
+import { useProject, useThread } from "~/state/entities";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 
 function ChatRouteGlobalShortcuts() {
@@ -162,7 +163,16 @@ function ChatRouteThreadParkingTracking() {
   const routeThreadRef =
     threadParkingNotes && routeTarget?.kind === "server" ? routeTarget.threadRef : null;
   const activeThread = useThread(routeThreadRef);
-  useThreadParkingTracking(routeThreadRef, activeThread?.title ?? null);
+  const activeProject = useProject(
+    routeThreadRef && activeThread
+      ? scopeProjectRef(routeThreadRef.environmentId, activeThread.projectId)
+      : null,
+  );
+  useThreadParkingTracking(
+    routeThreadRef,
+    activeThread?.title ?? null,
+    activeProject?.title ?? null,
+  );
   useThreadParkingSweep();
   return null;
 }

@@ -18,12 +18,27 @@ import { useAtomCommand } from "../state/use-atom-command";
 import { useThreadParkingStore } from "../threadParkingStore";
 import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 
+function describeParkedThread(threadTitle: string | null, projectTitle: string | null): string {
+  if (threadTitle && projectTitle) {
+    return `Leave a note for “${threadTitle}” in ${projectTitle} so you can pick it back up without re-loading it in your head.`;
+  }
+  if (threadTitle) {
+    return `Leave a note for “${threadTitle}” so you can pick it back up without re-loading it in your head.`;
+  }
+  if (projectTitle) {
+    return `Leave a note for the ${projectTitle} thread you just left so you can pick it back up without re-loading it in your head.`;
+  }
+  return "Leave a note for the thread you just left so you can pick it back up without re-loading it in your head.";
+}
+
 function ThreadParkingForm({
   threadRef,
   threadTitle,
+  projectTitle,
 }: {
   threadRef: ScopedThreadRef;
   threadTitle: string | null;
+  projectTitle: string | null;
 }) {
   const skipParkingPrompt = useThreadParkingStore((store) => store.skipParkingPrompt);
   const setLocalNote = useThreadParkingStore((store) => store.setLocalNote);
@@ -65,15 +80,21 @@ function ThreadParkingForm({
         }
         skipParkingPrompt();
       }}
+      onKeyDown={(event) => {
+        if (
+          (event.metaKey || event.ctrlKey) &&
+          event.key === "Enter" &&
+          (goal.trim() || nextStep.trim())
+        ) {
+          event.preventDefault();
+          event.currentTarget.requestSubmit();
+        }
+      }}
       className="contents"
     >
       <DialogHeader>
         <DialogTitle>Park your last thread</DialogTitle>
-        <DialogDescription>
-          {threadTitle
-            ? `Leave a note for “${threadTitle}” so you can pick it back up without re-loading it in your head.`
-            : "Leave a note for the thread you just left so you can pick it back up without re-loading it in your head."}
-        </DialogDescription>
+        <DialogDescription>{describeParkedThread(threadTitle, projectTitle)}</DialogDescription>
       </DialogHeader>
       <DialogPanel className="flex flex-col gap-3">
         <Textarea
@@ -134,6 +155,7 @@ export function ThreadParkingDialog() {
             key={pendingPrompt.threadKey}
             threadRef={pendingPrompt.threadRef}
             threadTitle={pendingPrompt.threadTitle}
+            projectTitle={pendingPrompt.projectTitle}
           />
         </DialogPopup>
       ) : null}
