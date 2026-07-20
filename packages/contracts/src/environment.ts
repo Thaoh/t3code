@@ -26,6 +26,7 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   // `parkedNote`). Older servers strip the field silently, so clients use
   // this flag to warn about non-syncing environments.
   threadParkingNotes: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  connectionProbe: Schema.optionalKey(Schema.Boolean),
 });
 export type ExecutionEnvironmentCapabilities = typeof ExecutionEnvironmentCapabilities.Type;
 
