@@ -6,7 +6,11 @@ import { useClientSettings } from "../hooks/useSettings";
 import { useServerConfigs } from "../state/entities";
 import { threadEnvironment } from "../state/threads";
 import { useAtomCommand } from "../state/use-atom-command";
-import { resolveDisplayedParkedNote, useThreadParkingStore } from "../threadParkingStore";
+import {
+  resolveDisplayedParkedNote,
+  serverConfigSupportsParkingNotes,
+  useThreadParkingStore,
+} from "../threadParkingStore";
 
 /**
  * Floating recap of the parked note captured when the user last left this
@@ -31,9 +35,9 @@ export function ThreadParkingNoteBanner({
   );
   const clearLocalNote = useThreadParkingStore((store) => store.clearLocalNote);
   const serverConfigs = useServerConfigs();
-  const serverSupportsParking =
-    serverConfigs.get(threadRef.environmentId)?.environment.capabilities.threadParkingNotes ===
-    true;
+  const serverSupportsParking = serverConfigSupportsParkingNotes(
+    serverConfigs.get(threadRef.environmentId),
+  );
   const updateThreadMetadata = useAtomCommand(threadEnvironment.updateMetadata, {
     reportFailure: false,
   });

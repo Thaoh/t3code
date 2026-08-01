@@ -5812,7 +5812,7 @@ function ChatViewContent(props: ChatViewProps) {
               {routeKind === "server" && activeThreadRef ? (
                 <ThreadParkingNoteBanner
                   threadRef={activeThreadRef}
-                  parkedNote={activeThread.parkedNote ?? null}
+                  parkedNote={activeThread.parkedNote}
                 />
               ) : null}
               {/* Messages — LegendList handles virtualization and scrolling internally */}

@@ -169,6 +169,7 @@ import {
   SidebarMenuSubItem,
   useSidebar,
 } from "./ui/sidebar";
+import { serverConfigSupportsParkingNotes } from "../threadParkingStore";
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { openCommandPalette } from "../commandPaletteBus";
 import {
@@ -1112,7 +1113,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
   const threadParkingUnsupported =
     threadParkingNotesEnabled &&
     projectServerConfig !== undefined &&
-    !projectServerConfig.environment.capabilities.threadParkingNotes;
+    !serverConfigSupportsParkingNotes(projectServerConfig);
   const deleteProject = useAtomCommand(projectEnvironment.delete, {
     reportFailure: false,
   });

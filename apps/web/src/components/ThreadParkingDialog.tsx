@@ -15,7 +15,7 @@ import { useClientSettings } from "../hooks/useSettings";
 import { useServerConfigs } from "../state/entities";
 import { threadEnvironment } from "../state/threads";
 import { useAtomCommand } from "../state/use-atom-command";
-import { useThreadParkingStore } from "../threadParkingStore";
+import { serverConfigSupportsParkingNotes, useThreadParkingStore } from "../threadParkingStore";
 import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 
 function describeParkedThread(threadTitle: string | null, projectTitle: string | null): string {
@@ -43,9 +43,9 @@ function ThreadParkingForm({
   const skipParkingPrompt = useThreadParkingStore((store) => store.skipParkingPrompt);
   const setLocalNote = useThreadParkingStore((store) => store.setLocalNote);
   const serverConfigs = useServerConfigs();
-  const serverSupportsParking =
-    serverConfigs.get(threadRef.environmentId)?.environment.capabilities.threadParkingNotes ===
-    true;
+  const serverSupportsParking = serverConfigSupportsParkingNotes(
+    serverConfigs.get(threadRef.environmentId),
+  );
   const updateThreadMetadata = useAtomCommand(threadEnvironment.updateMetadata, {
     reportFailure: false,
   });

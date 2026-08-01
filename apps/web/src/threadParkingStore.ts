@@ -1,4 +1,4 @@
-import type { ScopedThreadRef, ThreadParkedNote } from "@t3tools/contracts";
+import type { ScopedThreadRef, ServerConfig, ThreadParkedNote } from "@t3tools/contracts";
 import { parseScopedThreadKey, scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { useEffect, useMemo, useRef } from "react";
 import { create } from "zustand";
@@ -42,6 +42,13 @@ interface ThreadParkingStore {
   skipParkingPrompt: () => void;
   setLocalNote: (threadKey: string, note: ThreadParkedNote) => void;
   clearLocalNote: (threadKey: string) => void;
+}
+
+/** Whether the environment's server persists parked notes on thread metadata.
+    False for pre-parking servers (capability defaults false on decode), so
+    notes captured against them stay device-local until the server upgrades. */
+export function serverConfigSupportsParkingNotes(config: ServerConfig | undefined): boolean {
+  return config?.environment.capabilities.threadParkingNotes === true;
 }
 
 /**
@@ -300,7 +307,7 @@ export function useThreadParkingSweep(): void {
   const capableEnvironmentsKey = useMemo(() => {
     const ids: string[] = [];
     for (const [environmentId, config] of serverConfigs) {
-      if (config.environment.capabilities.threadParkingNotes) {
+      if (serverConfigSupportsParkingNotes(config)) {
         ids.push(environmentId);
       }
     }
