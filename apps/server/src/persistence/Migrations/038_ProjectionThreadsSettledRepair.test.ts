@@ -8,7 +8,7 @@ import * as NodeSqliteClient from "../NodeSqliteClient.ts";
 
 const layer = it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()));
 
-layer("037_ProjectionThreadsSettledRepair", (it) => {
+layer("038_ProjectionThreadsSettledRepair", (it) => {
   it.effect("restores settled columns when id 33 was recorded as ProjectionThreadsParkedNote", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -41,11 +41,11 @@ layer("037_ProjectionThreadsSettledRepair", (it) => {
       }>`
           SELECT migration_id, name
           FROM effect_sql_migrations
-          WHERE migration_id = 37
+          WHERE migration_id = 38
         `;
       assert.deepStrictEqual(repairs, [
         {
-          migration_id: 37,
+          migration_id: 38,
           name: "ProjectionThreadsSettledRepair",
         },
       ]);
