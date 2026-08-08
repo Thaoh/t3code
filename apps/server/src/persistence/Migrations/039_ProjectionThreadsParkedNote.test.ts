@@ -8,13 +8,13 @@ import * as NodeSqliteClient from "../NodeSqliteClient.ts";
 
 const makeLayer = () => it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()));
 
-makeLayer()("038_ProjectionThreadsParkedNote", (it) => {
+makeLayer()("039_ProjectionThreadsParkedNote", (it) => {
   it.effect("adds parked_note_json column", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
-      yield* runMigrations({ toMigrationInclusive: 37 });
       yield* runMigrations({ toMigrationInclusive: 38 });
+      yield* runMigrations({ toMigrationInclusive: 39 });
 
       const columns = yield* sql<{ readonly name: string }>`
         PRAGMA table_info(projection_threads)
@@ -24,18 +24,18 @@ makeLayer()("038_ProjectionThreadsParkedNote", (it) => {
   );
 });
 
-makeLayer()("038_ProjectionThreadsParkedNote idempotent", (it) => {
+makeLayer()("039_ProjectionThreadsParkedNote idempotent", (it) => {
   it.effect("continues when parked_note_json was already added", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
-      yield* runMigrations({ toMigrationInclusive: 37 });
+      yield* runMigrations({ toMigrationInclusive: 38 });
       yield* sql`
         ALTER TABLE projection_threads
         ADD COLUMN parked_note_json TEXT
       `;
 
-      yield* runMigrations({ toMigrationInclusive: 38 });
+      yield* runMigrations({ toMigrationInclusive: 39 });
 
       const migrations = yield* sql<{
         readonly migration_id: number;
@@ -43,11 +43,11 @@ makeLayer()("038_ProjectionThreadsParkedNote idempotent", (it) => {
       }>`
         SELECT migration_id, name
         FROM effect_sql_migrations
-        WHERE migration_id = 38
+        WHERE migration_id = 39
       `;
       assert.deepStrictEqual(migrations, [
         {
-          migration_id: 38,
+          migration_id: 39,
           name: "ProjectionThreadsParkedNote",
         },
       ]);

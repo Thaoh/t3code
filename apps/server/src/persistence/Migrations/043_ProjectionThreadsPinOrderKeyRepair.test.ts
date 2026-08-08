@@ -8,21 +8,21 @@ import * as NodeSqliteClient from "../NodeSqliteClient.ts";
 
 const layer = it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()));
 
-layer("039_ProjectionThreadsSettledRepair", (it) => {
-  it.effect("restores settled columns when id 33 was recorded as ProjectionThreadsParkedNote", () =>
+layer("043_ProjectionThreadsPinOrderKeyRepair", (it) => {
+  it.effect("restores pin_order_key when id 38 was recorded as ProjectionThreadsParkedNote", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
-      // Pre-merge thread-handoff builds used id 33 for parked notes. Simulate
-      // that history so the real ProjectionThreadsSettled migration is skipped.
-      yield* runMigrations({ toMigrationInclusive: 32 });
+      // Pre-merge parking builds used id 38 for parked notes. Simulate that
+      // history so the real ProjectionThreadsPinOrderKey migration is skipped.
+      yield* runMigrations({ toMigrationInclusive: 37 });
       yield* sql`
           ALTER TABLE projection_threads
           ADD COLUMN parked_note_json TEXT
         `;
       yield* sql`
           INSERT INTO effect_sql_migrations (migration_id, name)
-          VALUES (33, 'ProjectionThreadsParkedNote')
+          VALUES (38, 'ProjectionThreadsParkedNote')
         `;
 
       yield* runMigrations();
@@ -31,8 +31,7 @@ layer("039_ProjectionThreadsSettledRepair", (it) => {
           PRAGMA table_info(projection_threads)
         `;
       const names = new Set(columns.map((column) => column.name));
-      assert.ok(names.has("settled_override"));
-      assert.ok(names.has("settled_at"));
+      assert.ok(names.has("pin_order_key"));
       assert.ok(names.has("parked_note_json"));
 
       const repairs = yield* sql<{
@@ -41,12 +40,12 @@ layer("039_ProjectionThreadsSettledRepair", (it) => {
       }>`
           SELECT migration_id, name
           FROM effect_sql_migrations
-          WHERE migration_id = 39
+          WHERE migration_id = 43
         `;
       assert.deepStrictEqual(repairs, [
         {
-          migration_id: 39,
-          name: "ProjectionThreadsSettledRepair",
+          migration_id: 43,
+          name: "ProjectionThreadsPinOrderKeyRepair",
         },
       ]);
     }),
