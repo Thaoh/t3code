@@ -8,7 +8,7 @@ import * as NodeSqliteClient from "../NodeSqliteClient.ts";
 
 const makeLayer = () => it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()));
 
-makeLayer()("041_ProjectionThreadsPinnedRepair", (it) => {
+makeLayer()("043_ProjectionThreadsPinnedRepair", (it) => {
   it.effect("restores pinned_at when id 36 was recorded as a repair migration", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -44,11 +44,11 @@ makeLayer()("041_ProjectionThreadsPinnedRepair", (it) => {
       }>`
           SELECT migration_id, name
           FROM effect_sql_migrations
-          WHERE migration_id = 41
+          WHERE migration_id = 43
         `;
       assert.deepStrictEqual(repairs, [
         {
-          migration_id: 41,
+          migration_id: 43,
           name: "ProjectionThreadsPinnedRepair",
         },
       ]);
@@ -56,7 +56,7 @@ makeLayer()("041_ProjectionThreadsPinnedRepair", (it) => {
   );
 });
 
-makeLayer()("041_ProjectionThreadsPinnedRepair idempotent", (it) => {
+makeLayer()("043_ProjectionThreadsPinnedRepair idempotent", (it) => {
   it.effect("is a no-op when pinned_at already exists from migration 36", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -74,7 +74,7 @@ makeLayer()("041_ProjectionThreadsPinnedRepair idempotent", (it) => {
       }>`
           SELECT migration_id, name
           FROM effect_sql_migrations
-          WHERE migration_id IN (36, 41)
+          WHERE migration_id IN (36, 43)
           ORDER BY migration_id
         `;
       assert.deepStrictEqual(repairs, [
@@ -83,7 +83,7 @@ makeLayer()("041_ProjectionThreadsPinnedRepair idempotent", (it) => {
           name: "ProjectionThreadsPinned",
         },
         {
-          migration_id: 41,
+          migration_id: 43,
           name: "ProjectionThreadsPinnedRepair",
         },
       ]);

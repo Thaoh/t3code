@@ -8,7 +8,7 @@ import * as NodeSqliteClient from "../NodeSqliteClient.ts";
 
 const makeLayer = () => it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()));
 
-makeLayer()("042_ProjectionTurnsKeysetIndexRepair", (it) => {
+makeLayer()("044_ProjectionTurnsKeysetIndexRepair", (it) => {
   it.effect("restores keyset index when id 37 was recorded as ProjectionThreadsParkedNote", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -48,11 +48,11 @@ makeLayer()("042_ProjectionTurnsKeysetIndexRepair", (it) => {
       }>`
           SELECT migration_id, name
           FROM effect_sql_migrations
-          WHERE migration_id = 42
+          WHERE migration_id = 44
         `;
       assert.deepStrictEqual(repairs, [
         {
-          migration_id: 42,
+          migration_id: 44,
           name: "ProjectionTurnsKeysetIndexRepair",
         },
       ]);
@@ -60,7 +60,7 @@ makeLayer()("042_ProjectionTurnsKeysetIndexRepair", (it) => {
   );
 });
 
-makeLayer()("042_ProjectionTurnsKeysetIndexRepair idempotent", (it) => {
+makeLayer()("044_ProjectionTurnsKeysetIndexRepair idempotent", (it) => {
   it.effect("is a no-op when the keyset index already exists from migration 37", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -80,7 +80,7 @@ makeLayer()("042_ProjectionTurnsKeysetIndexRepair idempotent", (it) => {
       }>`
           SELECT migration_id, name
           FROM effect_sql_migrations
-          WHERE migration_id IN (37, 42)
+          WHERE migration_id IN (37, 44)
           ORDER BY migration_id
         `;
       assert.deepStrictEqual(migrations, [
@@ -89,7 +89,7 @@ makeLayer()("042_ProjectionTurnsKeysetIndexRepair idempotent", (it) => {
           name: "ProjectionTurnsKeysetIndex",
         },
         {
-          migration_id: 42,
+          migration_id: 44,
           name: "ProjectionTurnsKeysetIndexRepair",
         },
       ]);
