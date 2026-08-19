@@ -342,6 +342,32 @@ describe("buildCursorProviderSnapshot", () => {
     });
   });
 
+  it("exposes discovered skills as slash commands", () => {
+    expect(
+      buildCursorProviderSnapshot({
+        checkedAt: "2026-01-01T00:00:00.000Z",
+        cursorSettings: baseCursorSettings,
+        parsed: {
+          version: "2026.04.09-f2b0fcd",
+          status: "ready",
+          auth: { status: "authenticated" },
+        },
+        skills: [
+          {
+            name: "stamp",
+            path: "C:/Users/me/.cursor/skills/stamp/SKILL.md",
+            enabled: true,
+            scope: "user",
+            description: "Write or update a project's Stamp.",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      skills: [{ name: "stamp" }],
+      slashCommands: [{ name: "stamp", description: "Write or update a project's Stamp." }],
+    });
+  });
+
   it("preserves provider error state while appending discovery warnings", () => {
     expect(
       buildCursorProviderSnapshot({
