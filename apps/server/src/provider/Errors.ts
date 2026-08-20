@@ -1,3 +1,5 @@
+import { workspaceRootMissingMessage } from "@t3tools/contracts";
+import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 
 import type { CheckpointServiceError } from "../checkpointing/Errors.ts";
@@ -83,6 +85,52 @@ export class ProviderAdapterProcessError extends Schema.TaggedErrorClass<Provide
   override get message(): string {
     return `Provider adapter process error (${this.provider}) for thread ${this.threadId}: ${this.detail}`;
   }
+}
+
+/**
+ * ProviderAdapterWorkspaceNotFoundError - The project directory passed as cwd is gone.
+ */
+export class ProviderAdapterWorkspaceNotFoundError extends Schema.TaggedErrorClass<ProviderAdapterWorkspaceNotFoundError>()(
+  "ProviderAdapterWorkspaceNotFoundError",
+  {
+    provider: Schema.String,
+    threadId: Schema.String,
+    cwd: Schema.String,
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  override get message(): string {
+    return workspaceRootMissingMessage(this.cwd);
+  }
+}
+
+/**
+ * Effect's process spawner `access`es cwd before spawn. A missing directory
+ * surfaces as FileSystem.access NotFound, which adapters otherwise report as
+ * a failed executable spawn.
+ */
+export function missingWorkspaceRootPath(error: unknown): string | undefined {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current != null && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    if (current instanceof PlatformError.PlatformError) {
+      const reason = current.reason;
+      if (
+        reason._tag === "NotFound" &&
+        reason.module === "FileSystem" &&
+        reason.method === "access" &&
+        typeof reason.pathOrDescriptor === "string"
+      ) {
+        return reason.pathOrDescriptor;
+      }
+    }
+    if (!("cause" in current)) {
+      return undefined;
+    }
+    current = current.cause;
+  }
+  return undefined;
 }
 
 /**
@@ -192,7 +240,8 @@ export type ProviderAdapterError =
   | ProviderAdapterSessionNotFoundError
   | ProviderAdapterSessionClosedError
   | ProviderAdapterRequestError
-  | ProviderAdapterProcessError;
+  | ProviderAdapterProcessError
+  | ProviderAdapterWorkspaceNotFoundError;
 
 export type ProviderServiceError =
   | ProviderValidationError

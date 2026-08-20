@@ -2,6 +2,7 @@ import {
   type ChatAttachment,
   CommandId,
   EventId,
+  isWorkspaceRootMissingMessage,
   type ModelSelection,
   type OrchestrationEvent,
   ProviderDriverKind,
@@ -11,6 +12,7 @@ import {
   type ProviderSession,
   type RuntimeMode,
   type TurnId,
+  workspaceRootMissingMessage,
 } from "@t3tools/contracts";
 import { isTemporaryWorktreeBranch, WORKTREE_BRANCH_PREFIX } from "@t3tools/shared/git";
 import * as Cache from "effect/Cache";
@@ -27,7 +29,11 @@ import { makeDrainableWorker } from "@t3tools/shared/DrainableWorker";
 
 import { resolveThreadWorkspaceCwd } from "../../checkpointing/Utils.ts";
 import { increment, orchestrationEventsProcessedTotal } from "../../observability/Metrics.ts";
-import { ProviderAdapterRequestError } from "../../provider/Errors.ts";
+import {
+  missingWorkspaceRootPath,
+  ProviderAdapterRequestError,
+  ProviderAdapterWorkspaceNotFoundError,
+} from "../../provider/Errors.ts";
 import type { ProviderServiceError } from "../../provider/Errors.ts";
 import { TextGeneration } from "../../textGeneration/TextGeneration.ts";
 import { ProviderService } from "../../provider/Services/ProviderService.ts";
@@ -47,6 +53,7 @@ import {
 import { VcsStatusBroadcaster } from "../../vcs/VcsStatusBroadcaster.ts";
 import { GitWorkflowService } from "../../git/GitWorkflowService.ts";
 const isProviderAdapterRequestError = Schema.is(ProviderAdapterRequestError);
+const isProviderAdapterWorkspaceNotFoundError = Schema.is(ProviderAdapterWorkspaceNotFoundError);
 const isProviderDriverKind = Schema.is(ProviderDriverKind);
 
 type ProviderIntentEvent = Extract<
@@ -227,6 +234,22 @@ export function providerErrorLabelFromInstanceHint(input: {
   );
 }
 
+export function formatProviderFailureDetail(cause: Cause.Cause<unknown>): string {
+  const failReason = cause.reasons.find(Cause.isFailReason);
+  const error = failReason?.error;
+  if (isProviderAdapterWorkspaceNotFoundError(error)) {
+    return workspaceRootMissingMessage(error.cwd);
+  }
+  if (isProviderAdapterRequestError(error)) {
+    return error.detail;
+  }
+  const missingCwd = missingWorkspaceRootPath(error);
+  if (missingCwd !== undefined) {
+    return workspaceRootMissingMessage(missingCwd);
+  }
+  return Cause.pretty(cause);
+}
+
 function findProviderAdapterRequestError(
   cause: Cause.Cause<ProviderServiceError>,
 ): ProviderAdapterRequestError | undefined {
@@ -365,17 +388,6 @@ const make = Effect.gen(function* () {
         }),
       ),
     );
-
-  const formatFailureDetail = (cause: Cause.Cause<unknown>): string => {
-    const failReason = cause.reasons.find(Cause.isFailReason);
-    const providerError = isProviderAdapterRequestError(failReason?.error)
-      ? failReason.error
-      : undefined;
-    if (providerError) {
-      return providerError.detail;
-    }
-    return Cause.pretty(cause);
-  };
 
   const setThreadSession = (input: {
     readonly threadId: ThreadId;
@@ -1118,7 +1130,7 @@ const make = Effect.gen(function* () {
       if (Cause.hasInterruptsOnly(cause)) {
         return Effect.void;
       }
-      const detail = formatFailureDetail(cause);
+      const detail = formatProviderFailureDetail(cause);
       return setThreadSessionErrorOnTurnStartFailure({
         threadId: event.payload.threadId,
         detail,
@@ -1128,7 +1140,9 @@ const make = Effect.gen(function* () {
           appendProviderFailureActivity({
             threadId: event.payload.threadId,
             kind: "provider.turn.start.failed",
-            summary: "Provider turn start failed",
+            summary: isWorkspaceRootMissingMessage(detail)
+              ? "Project directory is missing"
+              : "Provider turn start failed",
             detail,
             turnId: null,
             createdAt: event.payload.createdAt,

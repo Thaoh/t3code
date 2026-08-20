@@ -2,16 +2,32 @@ import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  isWorkspaceRootMissingMessage,
   ProjectReadFileError,
   ProjectSearchContentsError,
   ProjectSearchContentsInput,
   ProjectSearchEntriesError,
   ProjectSearchEntriesInput,
   ProjectWriteFileError,
+  workspaceRootMissingMessage,
 } from "./project.ts";
 
 const decodeSearchEntriesInput = Schema.decodeUnknownSync(ProjectSearchEntriesInput);
 const decodeSearchContentsInput = Schema.decodeUnknownSync(ProjectSearchContentsInput);
+
+describe("workspace root missing copy", () => {
+  it("names the missing directory and points to project settings", () => {
+    const message = workspaceRootMissingMessage("C:\\Projects\\Web\\teachup-nuxt");
+
+    expect(message).toBe(
+      "This project's directory is missing: C:\\Projects\\Web\\teachup-nuxt. You can change it in this project's settings.",
+    );
+    expect(isWorkspaceRootMissingMessage(message)).toBe(true);
+    expect(
+      isWorkspaceRootMissingMessage("Failed to spawn ACP process for command: cursor-agent"),
+    ).toBe(false);
+  });
+});
 
 describe("project search inputs", () => {
   it("allows an empty entries query for bounded frecency browsing", () => {

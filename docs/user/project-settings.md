@@ -14,3 +14,15 @@ T3 Code supports SVG, PNG, ICO, JPEG, GIF, AVIF, and WebP files. The selected pa
 each checkout in the project group and appears on your connected clients.
 
 To use automatic detection again, select **Automatic**.
+
+# Change a project directory
+
+If a project's folder was moved or deleted, threads in that project fail until the checkout path
+is updated.
+
+1. Open the project from **Settings → Projects**, or choose **Open project settings** on the error
+   in the thread.
+2. Under **Checkout**, select **Change folder**.
+3. Choose the folder (desktop) or type the new path (browser) and press Enter.
+
+The updated path applies to that checkout. Existing threads keep working against the new folder.

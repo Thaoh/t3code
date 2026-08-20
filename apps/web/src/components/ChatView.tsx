@@ -1793,6 +1793,18 @@ function ChatViewContent(props: ChatViewProps) {
   // drive the environment picker in BranchToolbar.
   const allProjects = useProjects();
   const primaryEnvironmentId = primaryEnvironment?.environmentId ?? null;
+  const activeLogicalProjectKey = useMemo(() => {
+    if (!activeProject) return null;
+    const logicalKeyByPhysicalKey = buildPhysicalToLogicalProjectKeyMap({
+      projects: allProjects,
+      settings: projectGroupingSettings,
+      primaryEnvironmentId,
+    });
+    return (
+      logicalKeyByPhysicalKey.get(derivePhysicalProjectKey(activeProject)) ??
+      deriveLogicalProjectKeyFromSettings(activeProject, projectGroupingSettings)
+    );
+  }, [activeProject, allProjects, primaryEnvironmentId, projectGroupingSettings]);
   useEffect(() => {
     if (!activeThreadRef || !activeProjectRef) return;
     registerFaviconProjectForThread(activeThreadRef, activeProjectRef);
@@ -6291,6 +6303,7 @@ function ChatViewContent(props: ChatViewProps) {
 
         <ThreadErrorBanner
           error={visibleThreadError}
+          projectKey={activeLogicalProjectKey}
           onDismiss={() => {
             setThreadError(activeThread.id, null);
             dismissThreadErrorBannerForSession(threadErrorBannerKey);

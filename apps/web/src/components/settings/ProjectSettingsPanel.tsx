@@ -738,6 +738,62 @@ function ProjectDetail({ group }: { group: SidebarProjectSnapshot }) {
       deriveProjectGroupingOverrideKey(selectedCheckout)
     ] ?? "inherit";
   const selectedCheckoutLabel = selectedCheckout.environmentLabel ?? "This machine";
+  const [isEditingCheckoutPath, setIsEditingCheckoutPath] = useState(false);
+  const [checkoutPathDraft, setCheckoutPathDraft] = useState(selectedCheckout.workspaceRoot);
+
+  useEffect(() => {
+    setCheckoutPathDraft(selectedCheckout.workspaceRoot);
+    setIsEditingCheckoutPath(false);
+  }, [selectedCheckout.physicalProjectKey, selectedCheckout.workspaceRoot]);
+
+  const saveCheckoutPath = useCallback(
+    async (nextPath: string) => {
+      const trimmed = nextPath.trim();
+      if (trimmed.length === 0 || trimmed === selectedCheckout.workspaceRoot) {
+        setCheckoutPathDraft(selectedCheckout.workspaceRoot);
+        setIsEditingCheckoutPath(false);
+        return;
+      }
+      const result = mapAtomCommandResult(
+        await updateProject({
+          environmentId: selectedCheckout.environmentId,
+          input: { projectId: selectedCheckout.id, workspaceRoot: trimmed },
+        }),
+        () => undefined,
+      );
+      if (result._tag === "Failure") {
+        reportFailure("Failed to change project directory", result);
+        setCheckoutPathDraft(selectedCheckout.workspaceRoot);
+        return;
+      }
+      setIsEditingCheckoutPath(false);
+    },
+    [reportFailure, selectedCheckout, updateProject],
+  );
+
+  const changeCheckoutFolder = useCallback(async () => {
+    if (isElectron) {
+      try {
+        const picked = await readLocalApi()?.dialogs.pickFolder({
+          initialPath: selectedCheckout.workspaceRoot,
+          targetEnvironmentId: selectedCheckout.environmentId,
+        });
+        if (picked) {
+          await saveCheckoutPath(picked);
+        }
+      } catch (error) {
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: "Failed to change project directory",
+            description: error instanceof Error ? error.message : "An error occurred.",
+          }),
+        );
+      }
+      return;
+    }
+    setIsEditingCheckoutPath(true);
+  }, [saveCheckoutPath, selectedCheckout.environmentId, selectedCheckout.workspaceRoot]);
 
   return (
     <>
@@ -921,33 +977,66 @@ function ProjectDetail({ group }: { group: SidebarProjectSnapshot }) {
         >
           <div className="px-3 py-2 sm:px-4">
             <div className="flex min-w-0 items-center rounded-lg bg-muted/30 p-1 text-base text-muted-foreground sm:text-sm">
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <button
-                      aria-label="Copy checkout path"
-                      className="group flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left outline-none hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                      type="button"
-                      onClick={() =>
-                        copyPathToClipboard(selectedCheckout.workspaceRoot, {
-                          path: selectedCheckout.workspaceRoot,
-                        })
-                      }
-                    >
-                      <code className="min-w-0 flex-1 truncate font-mono">
-                        {selectedCheckout.workspaceRoot}
-                      </code>
-                      <CopyIcon className="size-4 shrink-0 opacity-60 group-hover:opacity-100" />
-                    </button>
-                  }
+              {isEditingCheckoutPath ? (
+                <Input
+                  autoFocus
+                  aria-label="Project directory"
+                  className="min-w-0 flex-1 font-mono"
+                  value={checkoutPathDraft}
+                  onChange={(event) => setCheckoutPathDraft(event.target.value)}
+                  onBlur={(event) => {
+                    void saveCheckoutPath(event.currentTarget.value);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.currentTarget.blur();
+                    }
+                    if (event.key === "Escape") {
+                      event.currentTarget.value = selectedCheckout.workspaceRoot;
+                      setCheckoutPathDraft(selectedCheckout.workspaceRoot);
+                      event.currentTarget.blur();
+                    }
+                  }}
                 />
-                <TooltipPopup side="top">Copy path</TooltipPopup>
-              </Tooltip>
-              <div className="shrink-0 border-l border-border/60 px-2 tabular-nums">
-                {selectedCheckoutThreadCount === 1
-                  ? "1 thread"
-                  : `${selectedCheckoutThreadCount} threads`}
-              </div>
+              ) : (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          aria-label="Copy checkout path"
+                          className="group flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left outline-none hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                          type="button"
+                          onClick={() =>
+                            copyPathToClipboard(selectedCheckout.workspaceRoot, {
+                              path: selectedCheckout.workspaceRoot,
+                            })
+                          }
+                        >
+                          <code className="min-w-0 flex-1 truncate font-mono">
+                            {selectedCheckout.workspaceRoot}
+                          </code>
+                          <CopyIcon className="size-4 shrink-0 opacity-60 group-hover:opacity-100" />
+                        </button>
+                      }
+                    />
+                    <TooltipPopup side="top">Copy path</TooltipPopup>
+                  </Tooltip>
+                  <div className="shrink-0 border-l border-border/60 px-2 tabular-nums">
+                    {selectedCheckoutThreadCount === 1
+                      ? "1 thread"
+                      : `${selectedCheckoutThreadCount} threads`}
+                  </div>
+                  <Button
+                    className="mr-1 shrink-0"
+                    size="xs"
+                    variant="outline"
+                    onClick={() => void changeCheckoutFolder()}
+                  >
+                    Change folder
+                  </Button>
+                </>
+              )}
             </div>
           </div>
           <SettingsRow

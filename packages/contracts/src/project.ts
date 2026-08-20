@@ -92,6 +92,16 @@ export const ProjectEntriesFailure = Schema.Literals([
 ]);
 export type ProjectEntriesFailure = typeof ProjectEntriesFailure.Type;
 
+const WORKSPACE_ROOT_MISSING_PREFIX = "This project's directory is missing:";
+
+export function workspaceRootMissingMessage(cwd: string): string {
+  return `${WORKSPACE_ROOT_MISSING_PREFIX} ${cwd}. You can change it in this project's settings.`;
+}
+
+export function isWorkspaceRootMissingMessage(text: string): boolean {
+  return text.startsWith(WORKSPACE_ROOT_MISSING_PREFIX);
+}
+
 type ProjectEntriesFailureContext = {
   readonly failure: ProjectEntriesFailure;
   readonly normalizedCwd?: string;

@@ -1,11 +1,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vite-plus/test";
+import { workspaceRootMissingMessage } from "@t3tools/contracts";
 
 import {
   dismissThreadErrorBannerForSession,
   getThreadErrorBannerKey,
   isThreadErrorBannerDismissedForSession,
   shouldShowThreadErrorBanner,
+  threadErrorBannerProjectSettingsKey,
   ThreadErrorBanner,
 } from "./ThreadErrorBanner";
 
@@ -68,6 +70,15 @@ describe("ThreadErrorBanner", () => {
 
   it("never shows a null error", () => {
     expect(shouldShowThreadErrorBanner("env:thread-e", null, false)).toBe(false);
+  });
+
+  it("offers project settings only for a missing project directory", () => {
+    const cwd = "C:\\Projects\\Web\\teachup-nuxt";
+    expect(
+      threadErrorBannerProjectSettingsKey(workspaceRootMissingMessage(cwd), "repo:teachup"),
+    ).toBe("repo:teachup");
+    expect(threadErrorBannerProjectSettingsKey("Provider crashed", "repo:teachup")).toBeNull();
+    expect(threadErrorBannerProjectSettingsKey(workspaceRootMissingMessage(cwd), null)).toBeNull();
   });
   it("aligns the warning and dismiss icons with the first line of a multi-line error", () => {
     const markup = renderToStaticMarkup(

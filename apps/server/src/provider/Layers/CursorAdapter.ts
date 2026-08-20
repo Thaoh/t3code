@@ -44,12 +44,15 @@ import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import {
-  ProviderAdapterProcessError,
   ProviderAdapterRequestError,
   ProviderAdapterSessionNotFoundError,
   ProviderAdapterValidationError,
 } from "../Errors.ts";
-import { acpPermissionOutcome, mapAcpToAdapterError } from "../acp/AcpAdapterSupport.ts";
+import {
+  acpPermissionOutcome,
+  mapAcpSessionStartError,
+  mapAcpToAdapterError,
+} from "../acp/AcpAdapterSupport.ts";
 import type * as AcpSessionRuntime from "../acp/AcpSessionRuntime.ts";
 import {
   makeAcpAssistantItemEvent,
@@ -560,14 +563,8 @@ export function makeCursorAdapter(
           }).pipe(
             Effect.provideService(Crypto.Crypto, crypto),
             Effect.provideService(Scope.Scope, sessionScope),
-            Effect.mapError(
-              (cause) =>
-                new ProviderAdapterProcessError({
-                  provider: PROVIDER,
-                  threadId: input.threadId,
-                  detail: cause.message,
-                  cause,
-                }),
+            Effect.mapError((cause) =>
+              mapAcpSessionStartError(PROVIDER, input.threadId, cwd, cause),
             ),
           );
           const started = yield* Effect.gen(function* () {

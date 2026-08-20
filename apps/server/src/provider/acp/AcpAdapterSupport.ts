@@ -7,8 +7,11 @@ import * as Schema from "effect/Schema";
 import * as EffectAcpErrors from "effect-acp/errors";
 
 import {
+  missingWorkspaceRootPath,
+  ProviderAdapterProcessError,
   ProviderAdapterRequestError,
   ProviderAdapterSessionClosedError,
+  ProviderAdapterWorkspaceNotFoundError,
   type ProviderAdapterError,
 } from "../Errors.ts";
 const isAcpProcessExitedError = Schema.is(EffectAcpErrors.AcpProcessExitedError);
@@ -40,6 +43,29 @@ export function mapAcpToAdapterError(
     method,
     detail: error.message,
     cause: error,
+  });
+}
+
+export function mapAcpSessionStartError(
+  provider: ProviderDriverKind,
+  threadId: ThreadId,
+  cwd: string,
+  cause: unknown,
+): ProviderAdapterError {
+  if (missingWorkspaceRootPath(cause) !== undefined) {
+    return new ProviderAdapterWorkspaceNotFoundError({
+      provider,
+      threadId,
+      cwd,
+      cause,
+    });
+  }
+  const detail = cause instanceof Error ? cause.message : String(cause);
+  return new ProviderAdapterProcessError({
+    provider,
+    threadId,
+    detail,
+    cause,
   });
 }
 

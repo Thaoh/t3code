@@ -9,6 +9,7 @@ import {
   ProviderSession,
   ProviderDriverKind,
   ProviderInstanceId,
+  workspaceRootMissingMessage,
 } from "@t3tools/contracts";
 import { createModelSelection } from "@t3tools/shared/model";
 import {
@@ -22,6 +23,7 @@ import {
   TurnId,
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
+import * as Cause from "effect/Cause";
 import * as Deferred from "effect/Deferred";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
@@ -32,9 +34,15 @@ import * as Stream from "effect/Stream";
 import { it as effectIt } from "@effect/vitest";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
+import * as EffectAcpErrors from "effect-acp/errors";
+import * as PlatformError from "effect/PlatformError";
 import { deriveServerPaths, ServerConfig } from "../../config.ts";
 import { TextGenerationError } from "@t3tools/contracts";
-import { ProviderAdapterRequestError } from "../../provider/Errors.ts";
+import {
+  ProviderAdapterProcessError,
+  ProviderAdapterRequestError,
+  ProviderAdapterWorkspaceNotFoundError,
+} from "../../provider/Errors.ts";
 import { OrchestrationEventStoreLive } from "../../persistence/Layers/OrchestrationEventStore.ts";
 import { OrchestrationCommandReceiptRepositoryLive } from "../../persistence/Layers/OrchestrationCommandReceipts.ts";
 import { SqlitePersistenceMemory } from "../../persistence/Layers/Sqlite.ts";
@@ -51,6 +59,7 @@ import { OrchestrationProjectionSnapshotQueryLive } from "./ProjectionSnapshotQu
 import * as ThreadBackgroundLiveness from "../ThreadBackgroundLiveness.ts";
 import * as ThreadPlanProgress from "../ThreadPlanProgress.ts";
 import {
+  formatProviderFailureDetail,
   providerErrorLabel,
   providerErrorLabelFromInstanceHint,
   ProviderCommandReactorLive,
@@ -140,6 +149,43 @@ describe("ProviderCommandReactor", () => {
 
     it("uses the unknown driver kind when the resolved driver is not registered locally", () => {
       expect(providerErrorLabel("third_party_driver")).toBe("third_party_driver");
+    });
+  });
+
+  describe("formatProviderFailureDetail", () => {
+    it("uses the missing-directory copy instead of a spawn stack", () => {
+      const cwd = "C:\\Projects\\Web\\teachup-nuxt";
+      const cause = Cause.fail(
+        new ProviderAdapterWorkspaceNotFoundError({
+          provider: "cursor",
+          threadId: "thread-1",
+          cwd,
+        }),
+      );
+
+      expect(formatProviderFailureDetail(cause)).toBe(workspaceRootMissingMessage(cwd));
+    });
+
+    it("unwraps a process error whose cause is a missing cwd", () => {
+      const cwd = "/missing/project";
+      const cause = Cause.fail(
+        new ProviderAdapterProcessError({
+          provider: "codex",
+          threadId: "thread-1",
+          detail: "Failed to spawn ACP process for command: cursor-agent",
+          cause: new EffectAcpErrors.AcpSpawnError({
+            command: "cursor-agent",
+            cause: PlatformError.systemError({
+              _tag: "NotFound",
+              module: "FileSystem",
+              method: "access",
+              pathOrDescriptor: cwd,
+            }),
+          }),
+        }),
+      );
+
+      expect(formatProviderFailureDetail(cause)).toBe(workspaceRootMissingMessage(cwd));
     });
   });
 

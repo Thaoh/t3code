@@ -36,12 +36,11 @@ import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import {
-  ProviderAdapterProcessError,
   ProviderAdapterRequestError,
   ProviderAdapterSessionNotFoundError,
   ProviderAdapterValidationError,
 } from "../Errors.ts";
-import { mapAcpToAdapterError } from "../acp/AcpAdapterSupport.ts";
+import { mapAcpSessionStartError, mapAcpToAdapterError } from "../acp/AcpAdapterSupport.ts";
 import type * as AcpSessionRuntime from "../acp/AcpSessionRuntime.ts";
 import {
   makeAcpAssistantItemEvent,
@@ -598,14 +597,8 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
           }).pipe(
             Effect.provideService(Crypto.Crypto, crypto),
             Effect.provideService(Scope.Scope, sessionScope),
-            Effect.mapError(
-              (cause) =>
-                new ProviderAdapterProcessError({
-                  provider: PROVIDER,
-                  threadId: input.threadId,
-                  detail: cause.message,
-                  cause,
-                }),
+            Effect.mapError((cause) =>
+              mapAcpSessionStartError(PROVIDER, input.threadId, cwd, cause),
             ),
           );
           const started = yield* Effect.gen(function* () {
