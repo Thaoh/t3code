@@ -52,6 +52,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   // this flag to warn about non-syncing environments.
   threadParkingNotes: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   connectionProbe: Schema.optionalKey(Schema.Boolean),
+  /** Missing on older servers, which still accept inline image attachments. */
+  attachmentUploads: Schema.optionalKey(Schema.Boolean),
   /** Server exposes the pull-request list, detail, activity, diff, and mutation APIs. Absent on
       servers from before the pull-request workspace shipped, so clients must not probe them. */
   pullRequests: Schema.optionalKey(Schema.Boolean),
