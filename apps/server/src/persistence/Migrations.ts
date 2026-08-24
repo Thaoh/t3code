@@ -53,13 +53,15 @@ import Migration0037 from "./Migrations/037_ProjectionTurnsKeysetIndex.ts";
 import Migration0038 from "./Migrations/038_ProjectionThreadsPinOrderKey.ts";
 import Migration0039 from "./Migrations/039_ProjectionProjectsDefaultThreadEnvMode.ts";
 import Migration0040 from "./Migrations/040_ProjectionProjectFaviconPath.ts";
-import Migration0041 from "./Migrations/041_ProjectionThreadsParkedNote.ts";
+import Migration0041 from "./Migrations/041_AuthSessionClientConnection.ts";
 import Migration0042 from "./Migrations/042_ProjectionThreadsSettledRepair.ts";
 import Migration0043 from "./Migrations/043_ProjectionThreadsPinnedRepair.ts";
 import Migration0044 from "./Migrations/044_ProjectionTurnsKeysetIndexRepair.ts";
 import Migration0045 from "./Migrations/045_ProjectionThreadsPinOrderKeyRepair.ts";
 import Migration0046 from "./Migrations/046_ProjectionProjectsDefaultThreadEnvModeRepair.ts";
 import Migration0047 from "./Migrations/047_ProjectionProjectFaviconPathRepair.ts";
+import Migration0048 from "./Migrations/048_ProjectionThreadsParkedNote.ts";
+import Migration0049 from "./Migrations/049_AuthSessionClientConnectionRepair.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -112,13 +114,15 @@ export const migrationEntries = [
   [38, "ProjectionThreadsPinOrderKey", Migration0038],
   [39, "ProjectionProjectsDefaultThreadEnvMode", Migration0039],
   [40, "ProjectionProjectFaviconPath", Migration0040],
-  [41, "ProjectionThreadsParkedNote", Migration0041],
+  [41, "AuthSessionClientConnection", Migration0041],
   [42, "ProjectionThreadsSettledRepair", Migration0042],
   [43, "ProjectionThreadsPinnedRepair", Migration0043],
   [44, "ProjectionTurnsKeysetIndexRepair", Migration0044],
   [45, "ProjectionThreadsPinOrderKeyRepair", Migration0045],
   [46, "ProjectionProjectsDefaultThreadEnvModeRepair", Migration0046],
   [47, "ProjectionProjectFaviconPathRepair", Migration0047],
+  [48, "ProjectionThreadsParkedNote", Migration0048],
+  [49, "AuthSessionClientConnectionRepair", Migration0049],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
