@@ -4,9 +4,10 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 // Databases created by pre-merge feat/thread-handoff builds recorded
 // migration id 33 as ProjectionThreadsParkedNote, so the id-33
 // ProjectionThreadsSettled migration from main is skipped by the migrator and
-// its columns never get added. Re-run the same guarded ALTERs at an id those
-// databases have not seen; databases migrated from main already have the
-// columns and this is a no-op.
+// its columns never get added. This repair used to live at id 42; main later
+// claimed that slot for ProjectionThreadLinkedPullRequest, so the same
+// guarded ALTERs now run at id 50. Databases migrated from main already have
+// the columns and this is a no-op.
 export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const columns = yield* sql<{ readonly name: string }>`

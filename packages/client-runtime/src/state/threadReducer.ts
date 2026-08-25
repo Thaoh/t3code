@@ -222,6 +222,9 @@ export function applyThreadDetailEvent(
           ...(event.payload.parkedNote !== undefined
             ? { parkedNote: event.payload.parkedNote }
             : {}),
+          ...(event.payload.linkedPullRequest !== undefined
+            ? { linkedPullRequest: event.payload.linkedPullRequest }
+            : {}),
           updatedAt: event.payload.updatedAt,
         },
       };
