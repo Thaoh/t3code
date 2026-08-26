@@ -44,11 +44,11 @@ makeLayer()("043_ProjectionThreadsPinnedRepair", (it) => {
       }>`
           SELECT migration_id, name
           FROM effect_sql_migrations
-          WHERE migration_id = 43
+          WHERE migration_id = 53
         `;
       assert.deepStrictEqual(repairs, [
         {
-          migration_id: 43,
+          migration_id: 53,
           name: "ProjectionThreadsPinnedRepair",
         },
       ]);
@@ -74,7 +74,7 @@ makeLayer()("043_ProjectionThreadsPinnedRepair idempotent", (it) => {
       }>`
           SELECT migration_id, name
           FROM effect_sql_migrations
-          WHERE migration_id IN (36, 43)
+          WHERE migration_id IN (36, 53)
           ORDER BY migration_id
         `;
       assert.deepStrictEqual(repairs, [
@@ -83,7 +83,7 @@ makeLayer()("043_ProjectionThreadsPinnedRepair idempotent", (it) => {
           name: "ProjectionThreadsPinned",
         },
         {
-          migration_id: 43,
+          migration_id: 53,
           name: "ProjectionThreadsPinnedRepair",
         },
       ]);
