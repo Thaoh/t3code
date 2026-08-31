@@ -1,3 +1,9 @@
+# Agentic infrastructure
+
+Mode. Session start, and before a project write, commit, or Tracker call. Missing `.agentic/mode` is Stealth.
+
+Rotate. Names and scripts, not values. A secret in context is burned.
+
 # T3 Code
 
 T3 Code is a minimal GUI for coding agents. A Node WebSocket server wraps provider CLIs (Codex, Claude Code, Cursor, Grok, OpenCode) and serves web, desktop, and mobile clients.
