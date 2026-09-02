@@ -48,11 +48,11 @@ makeLayer()("044_ProjectionTurnsKeysetIndexRepair", (it) => {
       }>`
           SELECT migration_id, name
           FROM effect_sql_migrations
-          WHERE migration_id = 44
+          WHERE migration_id = 55
         `;
       assert.deepStrictEqual(repairs, [
         {
-          migration_id: 44,
+          migration_id: 55,
           name: "ProjectionTurnsKeysetIndexRepair",
         },
       ]);
@@ -80,7 +80,7 @@ makeLayer()("044_ProjectionTurnsKeysetIndexRepair idempotent", (it) => {
       }>`
           SELECT migration_id, name
           FROM effect_sql_migrations
-          WHERE migration_id IN (37, 44)
+          WHERE migration_id IN (37, 44, 55)
           ORDER BY migration_id
         `;
       assert.deepStrictEqual(migrations, [
@@ -90,6 +90,10 @@ makeLayer()("044_ProjectionTurnsKeysetIndexRepair idempotent", (it) => {
         },
         {
           migration_id: 44,
+          name: "ClearAutomaticProjectModelDefaults",
+        },
+        {
+          migration_id: 55,
           name: "ProjectionTurnsKeysetIndexRepair",
         },
       ]);
