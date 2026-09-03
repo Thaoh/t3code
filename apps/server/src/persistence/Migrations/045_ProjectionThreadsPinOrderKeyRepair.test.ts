@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
 import { runMigrations } from "../Migrations.ts";
-import * as NodeSqliteClient from "../NodeSqliteClient.ts";
+import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 
 const layer = it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()));
 
@@ -40,11 +40,11 @@ layer("045_ProjectionThreadsPinOrderKeyRepair", (it) => {
       }>`
           SELECT migration_id, name
           FROM effect_sql_migrations
-          WHERE migration_id = 45
+          WHERE migration_id = 59
         `;
       assert.deepStrictEqual(repairs, [
         {
-          migration_id: 45,
+          migration_id: 59,
           name: "ProjectionThreadsPinOrderKeyRepair",
         },
       ]);
