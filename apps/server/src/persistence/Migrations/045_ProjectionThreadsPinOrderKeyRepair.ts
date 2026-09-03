@@ -5,8 +5,8 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 // ProjectionThreadsParkedNote before main claimed that id for
 // ProjectionThreadsPinOrderKey. Those databases skip the pin-order migration
 // and crash boot when listThreads selects pin_order_key. Re-run the same
-// guarded ALTER at an id they have not seen; databases migrated from main
-// already have the column and this is a no-op.
+// guarded ALTER at id 59 (main claimed ids 45-47); databases migrated from
+// main already have the column and this is a no-op.
 export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const columns = yield* sql<{ readonly name: string }>`
