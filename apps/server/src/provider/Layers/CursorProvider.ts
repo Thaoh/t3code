@@ -35,6 +35,7 @@ import {
   buildBooleanOptionDescriptor,
   buildSelectOptionDescriptor,
   buildServerProvider,
+  COMPACT_SLASH_COMMAND,
   collectStreamAsString,
   isCommandMissingCause,
   providerModelsFromSettings,
@@ -644,10 +645,13 @@ export function buildCursorProviderSnapshot(input: {
       EMPTY_CAPABILITIES,
     ),
     skills,
-    slashCommands: skills.map((skill) => ({
-      name: skill.name,
-      ...(skill.description ? { description: skill.description } : {}),
-    })),
+    slashCommands: [
+      COMPACT_SLASH_COMMAND,
+      ...skills.map((skill) => ({
+        name: skill.name,
+        ...(skill.description ? { description: skill.description } : {}),
+      })),
+    ],
     probe: {
       installed: true,
       version: input.parsed.version,
