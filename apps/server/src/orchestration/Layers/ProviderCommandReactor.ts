@@ -38,6 +38,7 @@ import {
   ProviderAdapterRequestError,
   ProviderAdapterValidationError,
   ProviderAdapterWorkspaceNotFoundError,
+  ProviderWorkspaceMissingError,
 } from "../../provider/Errors.ts";
 import type { ProviderServiceError } from "../../provider/Errors.ts";
 import { TextGeneration } from "../../textGeneration/TextGeneration.ts";
@@ -61,6 +62,7 @@ import { GitWorkflowService } from "../../git/GitWorkflowService.ts";
 const isProviderAdapterRequestError = Schema.is(ProviderAdapterRequestError);
 const isProviderAdapterWorkspaceNotFoundError = Schema.is(ProviderAdapterWorkspaceNotFoundError);
 const isProviderAdapterValidationError = Schema.is(ProviderAdapterValidationError);
+const isProviderWorkspaceMissingError = Schema.is(ProviderWorkspaceMissingError);
 const isProviderDriverKind = Schema.is(ProviderDriverKind);
 
 type ProviderIntentEvent = Extract<
@@ -231,7 +233,7 @@ function formatThreadTitleContext(messages: ReadonlyArray<ThreadTitleMessage>): 
   };
 }
 
-export function providerErrorLabel(value: string | undefined): string {
+function providerErrorLabel(value: string | undefined): string {
   const normalized = value?.trim();
   return normalized && normalized.length > 0 ? normalized : "unknown";
 }
@@ -251,6 +253,9 @@ export function formatProviderFailureDetail(cause: Cause.Cause<unknown>): string
   const error = failReason?.error;
   if (isProviderAdapterWorkspaceNotFoundError(error)) {
     return workspaceRootMissingMessage(error.cwd);
+  }
+  if (isProviderWorkspaceMissingError(error)) {
+    return error.message;
   }
   if (isProviderAdapterRequestError(error)) {
     return error.detail;
