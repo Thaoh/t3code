@@ -11,7 +11,7 @@ import {
   ProviderAdapterProcessError,
   ProviderAdapterRequestError,
   ProviderAdapterSessionClosedError,
-  ProviderAdapterWorkspaceNotFoundError,
+  ProviderWorkspaceMissingError,
   type ProviderAdapterError,
 } from "../Errors.ts";
 const isAcpProcessExitedError = Schema.is(EffectAcpErrors.AcpProcessExitedError);
@@ -51,13 +51,11 @@ export function mapAcpSessionStartError(
   threadId: ThreadId,
   cwd: string,
   cause: unknown,
-): ProviderAdapterError {
+): ProviderAdapterError | ProviderWorkspaceMissingError {
   if (missingWorkspaceRootPath(cause) !== undefined) {
-    return new ProviderAdapterWorkspaceNotFoundError({
-      provider,
+    return new ProviderWorkspaceMissingError({
       threadId,
       cwd,
-      cause,
     });
   }
   const detail = cause instanceof Error ? cause.message : String(cause);

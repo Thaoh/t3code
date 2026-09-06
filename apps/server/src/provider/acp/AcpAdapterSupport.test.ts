@@ -31,7 +31,7 @@ describe("AcpAdapterSupport", () => {
     expect(error.message).toContain("Invalid params");
   });
 
-  it("maps a missing project directory to a workspace-not-found adapter error", () => {
+  it("maps a missing project directory to a workspace-missing error", () => {
     const cwd = "C:\\Projects\\Web\\teachup-nuxt";
     const error = mapAcpSessionStartError(
       ProviderDriverKind.make("cursor"),
@@ -48,7 +48,7 @@ describe("AcpAdapterSupport", () => {
       }),
     );
 
-    expect(error._tag).toBe("ProviderAdapterWorkspaceNotFoundError");
+    expect(error._tag).toBe("ProviderWorkspaceMissingError");
     expect(error.message).toBe(workspaceRootMissingMessage(cwd));
   });
 

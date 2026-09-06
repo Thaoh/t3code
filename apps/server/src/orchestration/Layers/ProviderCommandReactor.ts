@@ -37,7 +37,6 @@ import {
   missingWorkspaceRootPath,
   ProviderAdapterRequestError,
   ProviderAdapterValidationError,
-  ProviderAdapterWorkspaceNotFoundError,
   ProviderWorkspaceMissingError,
 } from "../../provider/Errors.ts";
 import type { ProviderServiceError } from "../../provider/Errors.ts";
@@ -60,7 +59,6 @@ import {
 import { VcsStatusBroadcaster } from "../../vcs/VcsStatusBroadcaster.ts";
 import { GitWorkflowService } from "../../git/GitWorkflowService.ts";
 const isProviderAdapterRequestError = Schema.is(ProviderAdapterRequestError);
-const isProviderAdapterWorkspaceNotFoundError = Schema.is(ProviderAdapterWorkspaceNotFoundError);
 const isProviderAdapterValidationError = Schema.is(ProviderAdapterValidationError);
 const isProviderWorkspaceMissingError = Schema.is(ProviderWorkspaceMissingError);
 const isProviderDriverKind = Schema.is(ProviderDriverKind);
@@ -251,9 +249,6 @@ export function providerErrorLabelFromInstanceHint(input: {
 export function formatProviderFailureDetail(cause: Cause.Cause<unknown>): string {
   const failReason = cause.reasons.find(Cause.isFailReason);
   const error = failReason?.error;
-  if (isProviderAdapterWorkspaceNotFoundError(error)) {
-    return workspaceRootMissingMessage(error.cwd);
-  }
   if (isProviderWorkspaceMissingError(error)) {
     return error.message;
   }

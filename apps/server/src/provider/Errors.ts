@@ -88,23 +88,6 @@ export class ProviderAdapterProcessError extends Schema.TaggedErrorClass<Provide
 }
 
 /**
- * ProviderAdapterWorkspaceNotFoundError - The project directory passed as cwd is gone.
- */
-export class ProviderAdapterWorkspaceNotFoundError extends Schema.TaggedErrorClass<ProviderAdapterWorkspaceNotFoundError>()(
-  "ProviderAdapterWorkspaceNotFoundError",
-  {
-    provider: Schema.String,
-    threadId: Schema.String,
-    cwd: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {
-  override get message(): string {
-    return workspaceRootMissingMessage(this.cwd);
-  }
-}
-
-/**
  * ProviderWorkspaceMissingError - The session's working directory no longer
  * exists on disk, so no provider process can start in it.
  */
@@ -116,7 +99,7 @@ export class ProviderWorkspaceMissingError extends Schema.TaggedErrorClass<Provi
   },
 ) {
   override get message(): string {
-    return `This thread's workspace folder no longer exists or is not a directory: ${this.cwd}. Restore the folder at this path before retrying.`;
+    return workspaceRootMissingMessage(this.cwd);
   }
 }
 
@@ -256,8 +239,7 @@ export type ProviderAdapterError =
   | ProviderAdapterSessionNotFoundError
   | ProviderAdapterSessionClosedError
   | ProviderAdapterRequestError
-  | ProviderAdapterProcessError
-  | ProviderAdapterWorkspaceNotFoundError;
+  | ProviderAdapterProcessError;
 
 export type ProviderServiceError =
   | ProviderValidationError

@@ -46,7 +46,6 @@ import { TextGenerationError } from "@t3tools/contracts";
 import {
   ProviderAdapterProcessError,
   ProviderAdapterRequestError,
-  ProviderAdapterWorkspaceNotFoundError,
   ProviderWorkspaceMissingError,
   type ProviderServiceError,
 } from "../../provider/Errors.ts";
@@ -176,8 +175,7 @@ describe("ProviderCommandReactor", () => {
     it("uses the missing-directory copy instead of a spawn stack", () => {
       const cwd = "C:\\Projects\\Web\\teachup-nuxt";
       const cause = Cause.fail(
-        new ProviderAdapterWorkspaceNotFoundError({
-          provider: "cursor",
+        new ProviderWorkspaceMissingError({
           threadId: "thread-1",
           cwd,
         }),
