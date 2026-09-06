@@ -73,6 +73,7 @@ import Migration0058 from "./Migrations/058_ProjectionProjectIconRepair.ts";
 import Migration0059 from "./Migrations/045_ProjectionThreadsPinOrderKeyRepair.ts";
 import Migration0060 from "./Migrations/046_ProjectionProjectsDefaultThreadEnvModeRepair.ts";
 import Migration0061 from "./Migrations/047_ProjectionProjectFaviconPathRepair.ts";
+import Migration0062 from "./Migrations/062_ProjectionThreadBranchPullRequest.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -146,6 +147,7 @@ export const migrationEntries = [
   [59, "ProjectionThreadsPinOrderKeyRepair", Migration0059],
   [60, "ProjectionProjectsDefaultThreadEnvModeRepair", Migration0060],
   [61, "ProjectionProjectFaviconPathRepair", Migration0061],
+  [62, "ProjectionThreadBranchPullRequest", Migration0062],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
