@@ -7,7 +7,7 @@ import type { CheckpointServiceError } from "../checkpointing/Errors.ts";
 /**
  * ProviderAdapterValidationError - Invalid adapter API input.
  */
-export class ProviderAdapterValidationError extends Schema.TaggedErrorClass<ProviderAdapterValidationError>()(
+export class ProviderAdapterValidationError extends Schema.TaggedError<ProviderAdapterValidationError>()(
   "ProviderAdapterValidationError",
   {
     provider: Schema.String,
@@ -24,7 +24,7 @@ export class ProviderAdapterValidationError extends Schema.TaggedErrorClass<Prov
 /**
  * ProviderAdapterSessionNotFoundError - Adapter-owned session id is unknown.
  */
-export class ProviderAdapterSessionNotFoundError extends Schema.TaggedErrorClass<ProviderAdapterSessionNotFoundError>()(
+export class ProviderAdapterSessionNotFoundError extends Schema.TaggedError<ProviderAdapterSessionNotFoundError>()(
   "ProviderAdapterSessionNotFoundError",
   {
     provider: Schema.String,
@@ -40,7 +40,7 @@ export class ProviderAdapterSessionNotFoundError extends Schema.TaggedErrorClass
 /**
  * ProviderAdapterSessionClosedError - Adapter session exists but is closed.
  */
-export class ProviderAdapterSessionClosedError extends Schema.TaggedErrorClass<ProviderAdapterSessionClosedError>()(
+export class ProviderAdapterSessionClosedError extends Schema.TaggedError<ProviderAdapterSessionClosedError>()(
   "ProviderAdapterSessionClosedError",
   {
     provider: Schema.String,
@@ -56,7 +56,7 @@ export class ProviderAdapterSessionClosedError extends Schema.TaggedErrorClass<P
 /**
  * ProviderAdapterRequestError - Provider protocol request failed or timed out.
  */
-export class ProviderAdapterRequestError extends Schema.TaggedErrorClass<ProviderAdapterRequestError>()(
+export class ProviderAdapterRequestError extends Schema.TaggedError<ProviderAdapterRequestError>()(
   "ProviderAdapterRequestError",
   {
     provider: Schema.String,
@@ -73,7 +73,7 @@ export class ProviderAdapterRequestError extends Schema.TaggedErrorClass<Provide
 /**
  * ProviderAdapterProcessError - Provider process lifecycle failure.
  */
-export class ProviderAdapterProcessError extends Schema.TaggedErrorClass<ProviderAdapterProcessError>()(
+export class ProviderAdapterProcessError extends Schema.TaggedError<ProviderAdapterProcessError>()(
   "ProviderAdapterProcessError",
   {
     provider: Schema.String,
@@ -91,7 +91,7 @@ export class ProviderAdapterProcessError extends Schema.TaggedErrorClass<Provide
  * ProviderWorkspaceMissingError - The session's working directory no longer
  * exists on disk, so no provider process can start in it.
  */
-export class ProviderWorkspaceMissingError extends Schema.TaggedErrorClass<ProviderWorkspaceMissingError>()(
+export class ProviderWorkspaceMissingError extends Schema.TaggedError<ProviderWorkspaceMissingError>()(
   "ProviderWorkspaceMissingError",
   {
     threadId: Schema.String,
@@ -135,7 +135,7 @@ export function missingWorkspaceRootPath(error: unknown): string | undefined {
 /**
  * ProviderValidationError - Invalid provider API input.
  */
-export class ProviderValidationError extends Schema.TaggedErrorClass<ProviderValidationError>()(
+export class ProviderValidationError extends Schema.TaggedError<ProviderValidationError>()(
   "ProviderValidationError",
   {
     operation: Schema.String,
@@ -151,7 +151,7 @@ export class ProviderValidationError extends Schema.TaggedErrorClass<ProviderVal
 /**
  * ProviderUnsupportedError - Requested provider is not implemented.
  */
-export class ProviderUnsupportedError extends Schema.TaggedErrorClass<ProviderUnsupportedError>()(
+export class ProviderUnsupportedError extends Schema.TaggedError<ProviderUnsupportedError>()(
   "ProviderUnsupportedError",
   {
     provider: Schema.String,
@@ -172,7 +172,7 @@ export class ProviderUnsupportedError extends Schema.TaggedErrorClass<ProviderUn
  * settings, or because routing is asked for an instance before the registry
  * has finished its first reload.
  */
-export class ProviderInstanceNotFoundError extends Schema.TaggedErrorClass<ProviderInstanceNotFoundError>()(
+export class ProviderInstanceNotFoundError extends Schema.TaggedError<ProviderInstanceNotFoundError>()(
   "ProviderInstanceNotFoundError",
   {
     instanceId: Schema.String,
@@ -189,7 +189,7 @@ export class ProviderInstanceNotFoundError extends Schema.TaggedErrorClass<Provi
  * instance. Surfaced to the registry, which marks the offending entry as
  * an "unavailable" shadow snapshot rather than crashing the server.
  */
-export class ProviderDriverError extends Schema.TaggedErrorClass<ProviderDriverError>()(
+export class ProviderDriverError extends Schema.TaggedError<ProviderDriverError>()(
   "ProviderDriverError",
   {
     driver: Schema.String,
@@ -206,7 +206,7 @@ export class ProviderDriverError extends Schema.TaggedErrorClass<ProviderDriverE
 /**
  * ProviderSessionNotFoundError - Provider-facing session not found.
  */
-export class ProviderSessionNotFoundError extends Schema.TaggedErrorClass<ProviderSessionNotFoundError>()(
+export class ProviderSessionNotFoundError extends Schema.TaggedError<ProviderSessionNotFoundError>()(
   "ProviderSessionNotFoundError",
   {
     threadId: Schema.String,
@@ -221,7 +221,7 @@ export class ProviderSessionNotFoundError extends Schema.TaggedErrorClass<Provid
 /**
  * ProviderSessionDirectoryPersistenceError - Session directory persistence failure.
  */
-export class ProviderSessionDirectoryPersistenceError extends Schema.TaggedErrorClass<ProviderSessionDirectoryPersistenceError>()(
+export class ProviderSessionDirectoryPersistenceError extends Schema.TaggedError<ProviderSessionDirectoryPersistenceError>()(
   "ProviderSessionDirectoryPersistenceError",
   {
     operation: Schema.String,
