@@ -354,6 +354,7 @@ export function buildLocalDraftThread(
     worktreePath: draftThread.worktreePath,
     parkedNote: null,
     checkpoints: [],
+    pullRequests: [],
     activities: [],
     proposedPlans: [],
   };

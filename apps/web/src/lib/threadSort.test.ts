@@ -35,6 +35,7 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
     worktreePath: null,
     parkedNote: null,
     checkpoints: [],
+    pullRequests: [],
     activities: [],
     ...overrides,
   };
