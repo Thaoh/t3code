@@ -289,6 +289,7 @@ import {
   type DraftThreadEnvMode,
   finalizePromotedDraftThreadByRef,
   markPromotedDraftThreadByRef,
+  restoreFailedBackgroundDraftThread,
   useComposerDraftStore,
   DraftId,
 } from "../composerDraftStore";
@@ -3545,7 +3546,9 @@ export default function ChatView(props: ChatViewProps) {
     live: liveWorktreeSetup,
     recorded: recordedWorktreeSetup,
     turnStarted: activeThread?.latestTurn?.startedAt != null,
-    isWorking,
+    // Counts the optimistic send too, so the row retires the moment the
+    // follow-up is on screen rather than when the server echoes it back.
+    followUpSent: timelineMessages.filter((message) => message.role === "user").length > 1,
   });
   // Sends wait for the agent handoff, not for the setup script: an async
   // script keeps the snapshot running while the agent already works, and a
@@ -6797,6 +6800,17 @@ export default function ChatView(props: ChatViewProps) {
         return;
       }
 
+      if (command === "thread.steerQueuedMessage") {
+        const message = activeThreadKey
+          ? useQueuedMessageStore.getState().queuesByThreadKey[activeThreadKey]?.[0]
+          : undefined;
+        if (!message) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (!event.repeat) queuedMessageActionsRef.current.steer(message.id);
+        return;
+      }
+
       if (command === "thread.stop") {
         // An unavailable command should not shadow contextual shortcuts such as Escape to close a dialog.
         if (!canInterruptRunningThread) return;
@@ -6826,6 +6840,7 @@ export default function ChatView(props: ChatViewProps) {
     activeThreadPinned,
     activeThreadSettled,
     canInterruptRunningThread,
+    activeThreadKey,
     terminalUiState.terminalOpen,
     terminalUiState.activeTerminalId,
     activeThreadId,
@@ -7513,11 +7528,13 @@ export default function ChatView(props: ChatViewProps) {
       );
       return;
     }
-    // A send during a running turn waits in the queue. It leaves on the next
-    // tool boundary, when the turn ends, or when the user clicks Steer. The
-    // provider treats a mid-turn send as a steer of the active turn, so the
-    // dispatch below is the same either way.
-    if (!queuedMessage && !directAnnotation && phase === "running" && activeThreadKey) {
+    if (
+      !queuedMessage &&
+      !directAnnotation &&
+      phase === "running" &&
+      activeThreadKey &&
+      settings.followUpBehavior === "queue"
+    ) {
       if (composerRef.current?.validateProviderInput(promptForSend) === false) {
         return;
       }
@@ -7913,6 +7930,7 @@ export default function ChatView(props: ChatViewProps) {
     }
 
     let turnStartSucceeded = false;
+    let backgroundDraftOpened = false;
     if (failure === null && turnAttachmentsResult._tag === "Success") {
       const bootstrap =
         isLocalDraftThread || baseBranchForWorktree
@@ -7951,7 +7969,7 @@ export default function ChatView(props: ChatViewProps) {
       if (backgroundThreadRef) {
         beginBackgroundDraftSubmissionByRef(backgroundThreadRef);
       }
-      const startResult = await startThreadTurn({
+      const startPromise = startThreadTurn({
         environmentId,
         input: {
           threadId: threadIdForSend,
@@ -7995,10 +8013,32 @@ export default function ChatView(props: ChatViewProps) {
           createdAt: messageCreatedAt,
         },
       });
-      if (startResult._tag === "Failure") {
-        if (backgroundThreadRef) {
+      if (backgroundThreadRef) {
+        markPromotedDraftThreadByRef(backgroundThreadRef);
+        try {
+          backgroundDraftOpened = Boolean(
+            await handleNewThread(
+              scopeProjectRef(activeProject.environmentId, activeProject.id),
+              resolveBackgroundDraftWorkspaceOptions({
+                envMode: sendEnvMode,
+                branch: activeThreadBranch,
+                startFromOrigin,
+              }),
+            ),
+          );
+        } catch (error) {
           clearBackgroundDraftSubmissionByRef(backgroundThreadRef);
+          toastManager.add(
+            stackedThreadToast({
+              type: "warning",
+              title: "Could not open a fresh composer",
+              description: error instanceof Error ? error.message : undefined,
+            }),
+          );
         }
+      }
+      const startResult = await startPromise;
+      if (startResult._tag === "Failure") {
         failure = startResult;
       } else {
         turnStartSucceeded = true;
@@ -8011,48 +8051,26 @@ export default function ChatView(props: ChatViewProps) {
         }
         acknowledgeActiveThreadWoke();
         if (backgroundThreadRef) {
-          markPromotedDraftThreadByRef(backgroundThreadRef);
-          try {
-            const nextDraft = await handleNewThread(
-              scopeProjectRef(activeProject.environmentId, activeProject.id),
-              resolveBackgroundDraftWorkspaceOptions({
-                envMode: sendEnvMode,
-                branch: activeThreadBranch,
-                startFromOrigin,
-              }),
-            );
-            if (nextDraft) {
-              finalizePromotedDraftThreadByRef(backgroundThreadRef);
-              toastManager.add(
-                stackedThreadToast({
-                  type: "success",
-                  title: "Started in background",
-                  timeout: 5_000,
-                  actionProps: {
-                    children: "Open",
-                    onClick: () => {
-                      void navigate({
-                        to: "/$environmentId/$threadId",
-                        params: buildThreadRouteParams(backgroundThreadRef),
-                      });
-                    },
-                  },
-                }),
-              );
-            } else {
-              clearBackgroundDraftSubmissionByRef(backgroundThreadRef);
-            }
-          } catch (error) {
+          if (backgroundDraftOpened || currentRouteThreadKeyRef.current !== routeThreadKey) {
+            finalizePromotedDraftThreadByRef(backgroundThreadRef);
+          } else {
             clearBackgroundDraftSubmissionByRef(backgroundThreadRef);
-            resetLocalDispatch();
+          }
+          if (backgroundDraftOpened) {
             toastManager.add(
               stackedThreadToast({
-                type: "warning",
-                title: "Task started in the background",
-                description:
-                  error instanceof Error
-                    ? `Could not open a fresh composer: ${error.message}`
-                    : "Could not open a fresh composer.",
+                type: "success",
+                title: "Started in background",
+                timeout: 5_000,
+                actionProps: {
+                  children: "Open",
+                  onClick: () => {
+                    void navigate({
+                      to: "/$environmentId/$threadId",
+                      params: buildThreadRouteParams(backgroundThreadRef),
+                    });
+                  },
+                },
               }),
             );
           }
@@ -8061,6 +8079,16 @@ export default function ChatView(props: ChatViewProps) {
     }
 
     if (failure !== null) {
+      if (resolvedSubmissionIntent === "background" && draftId && draftThread) {
+        restoreFailedBackgroundDraftThread(
+          draftId,
+          draftThread,
+          wasBootstrapThreadDeleted(squashAtomCommandFailure(failure))
+            ? newThreadId()
+            : threadIdForSend,
+        );
+        clearBackgroundDraftSubmissionByRef(scopeThreadRef(environmentId, threadIdForSend));
+      }
       if (queuedMessage) {
         setOptimisticUserMessages((existing) => {
           const removed = existing.filter((message) => message.id === messageIdForSend);
@@ -8079,14 +8107,18 @@ export default function ChatView(props: ChatViewProps) {
           });
         }
       } else if (
-        promptRef.current.length === 0 &&
-        composerImagesRef.current.length === 0 &&
-        composerFilesRef.current.length === 0 &&
-        composerTerminalContextsRef.current.length === 0 &&
-        (useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.previewAnnotations
-          .length ?? 0) === 0 &&
-        (useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.reviewComments
-          .length ?? 0) === 0
+        backgroundDraftOpened
+          ? !composerDraftHasUserContent(
+              useComposerDraftStore.getState().getComposerDraft(composerDraftTarget),
+            )
+          : promptRef.current.length === 0 &&
+            composerImagesRef.current.length === 0 &&
+            composerFilesRef.current.length === 0 &&
+            composerTerminalContextsRef.current.length === 0 &&
+            (useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)
+              ?.previewAnnotations.length ?? 0) === 0 &&
+            (useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.reviewComments
+              .length ?? 0) === 0
       ) {
         setOptimisticUserMessages((existing) => {
           const removed = existing.filter((message) => message.id === messageIdForSend);
@@ -8115,7 +8147,12 @@ export default function ChatView(props: ChatViewProps) {
       }
       if (!isAtomCommandInterrupted(failure)) {
         const error = squashAtomCommandFailure(failure);
-        if (isLocalDraftThread && draftId && wasBootstrapThreadDeleted(error)) {
+        if (
+          resolvedSubmissionIntent !== "background" &&
+          isLocalDraftThread &&
+          draftId &&
+          wasBootstrapThreadDeleted(error)
+        ) {
           const failedDraftSession = getDraftSession(draftId);
           if (failedDraftSession?.threadId === threadIdForSend) {
             setLogicalProjectDraftThreadId(
@@ -8133,6 +8170,21 @@ export default function ChatView(props: ChatViewProps) {
           threadIdForSend,
           error instanceof Error ? error.message : "Failed to send message.",
         );
+        if (backgroundDraftOpened && draftId) {
+          toastManager.add(
+            stackedThreadToast({
+              type: "error",
+              title: "Background task failed",
+              description: error instanceof Error ? error.message : "Failed to send message.",
+              actionProps: {
+                children: "Open draft",
+                onClick: () => {
+                  void navigate({ to: "/draft/$draftId", params: { draftId } });
+                },
+              },
+            }),
+          );
+        }
       }
     }
     sendInFlightRef.current = false;
@@ -9497,6 +9549,11 @@ export default function ChatView(props: ChatViewProps) {
                 loadEarlier={paintOnlyDisplayedTimeline ? null : loadEarlierTurns}
                 queuedMessages={paintOnlyDisplayedTimeline ? EMPTY_QUEUED_MESSAGES : queuedMessages}
                 onSteerQueuedMessage={onSteerQueuedMessage}
+                steerQueuedMessageShortcutLabel={shortcutLabelForCommand(
+                  keybindings,
+                  "thread.steerQueuedMessage",
+                  { context: { terminalFocus: false } },
+                )}
                 onRemoveQueuedMessage={onRemoveQueuedMessage}
               />
 

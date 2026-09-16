@@ -204,6 +204,7 @@ describe("versionSkew", () => {
         serverVersion: "9.9.9",
         capabilities: {
           repositoryIdentity: true,
+          threadParkingNotes: false,
           serverSelfUpdate: "desktop-managed" as const,
           ...(desktopAppUpdate === undefined ? {} : { desktopAppUpdate }),
         },
