@@ -33,6 +33,7 @@ const readModel: OrchestrationReadModel = {
       createdAt: UPDATED_AT,
       updatedAt: UPDATED_AT,
       archivedAt: null,
+      parkedNote: null,
       settledOverride: null,
       settledAt: null,
       snoozedUntil: null,

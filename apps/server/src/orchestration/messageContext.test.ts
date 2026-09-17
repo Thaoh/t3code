@@ -51,6 +51,7 @@ function makeReadModel(): OrchestrationReadModel {
         createdAt: NOW,
         updatedAt: NOW,
         archivedAt: null,
+        parkedNote: null,
         settledOverride: null,
         settledAt: null,
         snoozedUntil: null,

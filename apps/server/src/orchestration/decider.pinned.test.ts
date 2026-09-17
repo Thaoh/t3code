@@ -41,6 +41,7 @@ function makeReadModel(input: {
         createdAt: NOW,
         updatedAt: NOW,
         archivedAt: input.archivedAt ?? null,
+        parkedNote: null,
         settledOverride: input.settledOverride ?? null,
         settledAt: input.settledAt ?? (input.settledOverride === "settled" ? NOW : null),
         snoozedUntil: input.snoozedUntil ?? null,

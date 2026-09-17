@@ -131,6 +131,7 @@ const makeProjectedThread = (input: {
     createdAt: sourceThread.createdAt,
     updatedAt: sourceThread.updatedAt,
     archivedAt: null,
+    parkedNote: null,
     settledOverride: null,
     settledAt: null,
     deletedAt: null,

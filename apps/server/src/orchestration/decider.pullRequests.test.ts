@@ -90,6 +90,7 @@ function makeReadModel(pullRequests: ReadonlyArray<ThreadPullRequestLink>): Orch
         createdAt: NOW,
         updatedAt: NOW,
         archivedAt: null,
+        parkedNote: null,
         settledOverride: null,
         settledAt: null,
         deletedAt: null,

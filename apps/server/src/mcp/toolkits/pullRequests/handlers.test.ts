@@ -87,6 +87,7 @@ function makeThread(pullRequests: ReadonlyArray<ThreadPullRequestLink>): Orchest
     createdAt: "2026-08-01T00:00:00.000Z",
     updatedAt: "2026-08-20T00:00:00.000Z",
     archivedAt: null,
+    parkedNote: null,
     settledOverride: null,
     settledAt: null,
     session: null,
