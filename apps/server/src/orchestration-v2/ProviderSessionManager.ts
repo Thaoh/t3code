@@ -66,6 +66,7 @@ export const ProviderSessionReleaseReason = Schema.Literals([
   "runtime_error",
   "manual_shutdown",
   "server_shutdown",
+  "workspace_changed",
 ]);
 export type ProviderSessionReleaseReason = typeof ProviderSessionReleaseReason.Type;
 
@@ -205,6 +206,8 @@ interface LiveSessionEntry {
    */
   readonly mcpCredentialIdByThread: ReadonlyMap<ThreadId, string>;
   readonly supportsMultipleProviderThreads: boolean;
+  /** The folder this session's process was started in. */
+  readonly cwd: string | null;
   readonly runtime: ProviderAdapterV2SessionRuntime;
   readonly exposedRuntime: ProviderAdapterV2SessionRuntime;
   readonly eventSubscribers: Ref.Ref<
@@ -1736,7 +1739,19 @@ export const layerWithOptions = (
                 }
               }
               const key = sessionKey(input.providerSessionId);
-              const existing = (yield* Ref.get(sessions)).get(key);
+              const live = (yield* Ref.get(sessions)).get(key);
+              // A moved project folder changes the thread's cwd. An idle
+              // single-thread session keeps the old one, so start a fresh one.
+              const existing =
+                live !== undefined &&
+                !live.supportsMultipleProviderThreads &&
+                live.busyCount === 0 &&
+                live.cwd !== cwd
+                  ? yield* releaseEntry({
+                      providerSessionId: input.providerSessionId,
+                      reason: "workspace_changed",
+                    }).pipe(Effect.as(undefined))
+                  : live;
               if (existing !== undefined) {
                 if (
                   !existing.attachedThreadIds.has(input.threadId) &&
@@ -1848,6 +1863,7 @@ export const layerWithOptions = (
                 supportsMultipleProviderThreads:
                   runtime.providerSession.capabilities.sessions
                     .supportsMultipleProviderThreadsPerSession,
+                cwd: input.runtimePolicy.cwd,
                 runtime,
                 exposedRuntime,
                 eventSubscribers,

@@ -329,6 +329,27 @@ export function setDefaultAdvertisedEndpointKey(state: UiState, key: string | nu
   };
 }
 
+/**
+ * Carries path-keyed sidebar preferences (order, expansion, scope) to their new
+ * keys after a project's folder moves. A project without a repository groups by
+ * its path, so its scope key is renamed too.
+ */
+export function renameProjectPreferenceKeys(
+  state: UiState,
+  renames: ReadonlyMap<string, string>,
+): UiState {
+  const rename = (key: string) => renames.get(key) ?? key;
+  return {
+    ...state,
+    projectOrder: state.projectOrder.map(rename),
+    projectExpandedById: Object.fromEntries(
+      Object.entries(state.projectExpandedById).map(([key, expanded]) => [rename(key), expanded]),
+    ),
+    sidebarProjectScopeKey:
+      state.sidebarProjectScopeKey === null ? null : rename(state.sidebarProjectScopeKey),
+  };
+}
+
 export function setSidebarProjectScopeKey(state: UiState, projectKey: string | null): UiState {
   const nextKey = sanitizeOptionalKey(projectKey);
   if (state.sidebarProjectScopeKey === nextKey) {
@@ -431,6 +452,7 @@ interface UiStateStore extends UiState {
   setSidebarProjectScopeKey: (projectKey: string | null) => void;
   setPullRequestMergeMethod: (method: PullRequestMergeMethod) => void;
   setProjectExpanded: (projectIds: string | readonly string[], expanded: boolean) => void;
+  renameProjectPreferenceKeys: (renames: ReadonlyMap<string, string>) => void;
   reorderProjects: (
     currentProjectOrder: readonly string[],
     draggedProjectIds: readonly string[],
@@ -453,6 +475,8 @@ export const useUiStateStore = create<UiStateStore>((set) => ({
   setPullRequestMergeMethod: (method) => set((state) => setPullRequestMergeMethod(state, method)),
   setProjectExpanded: (projectIds, expanded) =>
     set((state) => setProjectExpanded(state, projectIds, expanded)),
+  renameProjectPreferenceKeys: (renames) =>
+    set((state) => renameProjectPreferenceKeys(state, renames)),
   reorderProjects: (currentProjectOrder, draggedProjectIds, targetProjectIds) =>
     set((state) =>
       reorderProjects(state, currentProjectOrder, draggedProjectIds, targetProjectIds),
