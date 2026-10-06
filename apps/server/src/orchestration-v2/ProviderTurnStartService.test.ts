@@ -43,149 +43,119 @@ import * as RuntimePolicy from "./RuntimePolicy.ts";
 
 const isDomainEvent = Schema.is(OrchestrationV2DomainEvent);
 
-const worktreePath = "/tmp/missing-provider-turn-start-worktree";
-
-it.each([
-  {
-    worktree: "missing",
-    fileSystem: { exists: () => Effect.succeed(false) },
-  },
-  {
-    // The project folder moved, so the worktree's `.git` pointer names the old path.
-    worktree: "stranded",
-    fileSystem: {
-      exists: (path: string) => Effect.succeed(path === worktreePath),
-      readFileString: () =>
-        Effect.succeed("gitdir: /tmp/moved-away-project/.git/worktrees/restore\n"),
+it("does not commit running state when inherited background routing cannot be read", async () => {
+  const threadId = ThreadId.make("thread_provider_turn_start_projection_failure");
+  const runId = RunId.make("run_provider_turn_start_projection_failure");
+  const attemptId = RunAttemptId.make("attempt_provider_turn_start_projection_failure");
+  const rootNodeId = NodeId.make("node_provider_turn_start_projection_failure");
+  const providerThreadId = ProviderThreadId.make(
+    "provider_thread_provider_turn_start_projection_failure",
+  );
+  const providerSessionId = ProviderSessionId.make(
+    "provider_session_provider_turn_start_projection_failure",
+  );
+  const messageId = MessageId.make("message_provider_turn_start_projection_failure");
+  const checkpointScopeId = CheckpointScopeId.make(
+    "checkpoint_scope_provider_turn_start_projection_failure",
+  );
+  const projection = {
+    thread: {
+      id: threadId,
+      projectId: ProjectId.make("project_provider_turn_start_projection_failure"),
+      branch: "feature/restore",
+      worktreePath: "/tmp/missing-provider-turn-start-worktree",
     },
-  },
-])(
-  "does not commit running state when inherited background routing cannot be read ($worktree worktree)",
-  async ({ worktree, fileSystem }) => {
-    const threadId = ThreadId.make("thread_provider_turn_start_projection_failure");
-    const runId = RunId.make("run_provider_turn_start_projection_failure");
-    const attemptId = RunAttemptId.make("attempt_provider_turn_start_projection_failure");
-    const rootNodeId = NodeId.make("node_provider_turn_start_projection_failure");
-    const providerThreadId = ProviderThreadId.make(
-      "provider_thread_provider_turn_start_projection_failure",
-    );
-    const providerSessionId = ProviderSessionId.make(
-      "provider_session_provider_turn_start_projection_failure",
-    );
-    const messageId = MessageId.make("message_provider_turn_start_projection_failure");
-    const checkpointScopeId = CheckpointScopeId.make(
-      "checkpoint_scope_provider_turn_start_projection_failure",
-    );
-    const projection = {
-      thread: {
-        id: threadId,
-        projectId: ProjectId.make("project_provider_turn_start_projection_failure"),
-        branch: "feature/restore",
-        worktreePath,
+    runs: [
+      {
+        id: runId,
+        status: "starting",
+        rootNodeId,
+        activeAttemptId: attemptId,
+        providerThreadId,
+        userMessageId: messageId,
+        ordinal: 2,
       },
-      runs: [
-        {
-          id: runId,
-          status: "starting",
-          rootNodeId,
-          activeAttemptId: attemptId,
-          providerThreadId,
-          userMessageId: messageId,
-          ordinal: 2,
-        },
-      ],
-      nodes: [{ id: rootNodeId, checkpointScopeId }],
-      attempts: [{ id: attemptId }],
-      providerThreads: [{ id: providerThreadId, providerSessionId }],
-      messages: [{ id: messageId, text: "Continue", attachments: [] }],
-      checkpointScopes: [{ id: checkpointScopeId }],
-      contextHandoffs: [],
-      contextTransfers: [],
-      turnItems: [],
-    } as unknown as OrchestrationV2ThreadProjection;
-    let projectionReadCount = 0;
-    const writeIfRunCurrent = vi.fn(() =>
-      Effect.succeed({ committed: true, storedEvents: [] } as never),
-    );
-    const startRootRun = vi.fn(() => Effect.void);
-    const pruneWorktrees = vi.fn(() => Effect.void);
-    const repairWorktrees = vi.fn(() => Effect.void);
-    const createWorktree = vi.fn(() => Effect.succeed({} as never));
-    const layer = ProviderTurnStart.layer.pipe(
-      Layer.provide(
-        Layer.mergeAll(
-          Layer.mock(ContextHandoffService.ContextHandoffServiceV2)({}),
-          Layer.mock(EventSink.EventSinkV2)({ writeIfRunCurrent }),
-          IdAllocator.layer,
-          Layer.succeed(FileSystem.FileSystem, fileSystem as never),
-          Path.layer,
-          Layer.mock(GitWorkflow.GitWorkflowService)({
-            pruneWorktrees,
-            repairWorktrees,
-            createWorktree,
-          }),
-          Layer.mock(ProjectService.ProjectService)({
-            getById: () =>
-              Effect.succeed(
-                Option.some({ workspaceRoot: "/tmp/provider-turn-start-project" } as never),
+    ],
+    nodes: [{ id: rootNodeId, checkpointScopeId }],
+    attempts: [{ id: attemptId }],
+    providerThreads: [{ id: providerThreadId, providerSessionId }],
+    messages: [{ id: messageId, text: "Continue", attachments: [] }],
+    checkpointScopes: [{ id: checkpointScopeId }],
+    contextHandoffs: [],
+    contextTransfers: [],
+    turnItems: [],
+  } as unknown as OrchestrationV2ThreadProjection;
+  let projectionReadCount = 0;
+  const writeIfRunCurrent = vi.fn(() =>
+    Effect.succeed({ committed: true, storedEvents: [] } as never),
+  );
+  const startRootRun = vi.fn(() => Effect.void);
+  const pruneWorktrees = vi.fn(() => Effect.void);
+  const createWorktree = vi.fn(() => Effect.succeed({} as never));
+  const layer = ProviderTurnStart.layer.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        Layer.mock(ContextHandoffService.ContextHandoffServiceV2)({}),
+        Layer.mock(EventSink.EventSinkV2)({ writeIfRunCurrent }),
+        IdAllocator.layer,
+        Layer.succeed(FileSystem.FileSystem, { exists: () => Effect.succeed(false) } as never),
+        Path.layer,
+        Layer.mock(GitWorkflow.GitWorkflowService)({ pruneWorktrees, createWorktree }),
+        Layer.mock(ProjectService.ProjectService)({
+          getById: () =>
+            Effect.succeed(
+              Option.some({ workspaceRoot: "/tmp/provider-turn-start-project" } as never),
+            ),
+        }),
+        Layer.mock(ProjectionStore.ProjectionStoreV2)({
+          getTurnStartContext: () => {
+            projectionReadCount += 1;
+            return Effect.succeed({
+              ...projection,
+              hasConversation: projection.messages.some(
+                (m) =>
+                  m.role === "user" &&
+                  (m.text.trim().toLowerCase() !== "/compact" || m.attachments.length > 0),
               ),
-          }),
-          Layer.mock(ProjectionStore.ProjectionStoreV2)({
-            getTurnStartContext: () => {
-              projectionReadCount += 1;
-              return Effect.succeed({
-                ...projection,
-                hasConversation: projection.messages.some(
-                  (m) =>
-                    m.role === "user" &&
-                    (m.text.trim().toLowerCase() !== "/compact" || m.attachments.length > 0),
-                ),
-              });
-            },
-            getRuntimeRecoveryProjection: () => {
-              projectionReadCount += 1;
-              return Effect.fail(
-                new ProjectionStore.ProjectionStoreReadError({
-                  threadId,
-                  cause: "simulated inherited-background projection failure",
-                }),
-              );
-            },
-          }),
-          Layer.mock(ProviderSessionManager.ProviderSessionManagerV2)({}),
-          Layer.mock(ProviderAuthService.ProviderAuthService)({
-            tryHandlePromptCommand: () => Effect.succeed(false),
-          }),
-          Layer.mock(RunExecutionService.RunExecutionServiceV2)({ startRootRun }),
-          Layer.mock(RuntimePolicy.RuntimePolicyV2)({}),
-        ),
+            });
+          },
+          getRuntimeRecoveryProjection: () => {
+            projectionReadCount += 1;
+            return Effect.fail(
+              new ProjectionStore.ProjectionStoreReadError({
+                threadId,
+                cause: "simulated inherited-background projection failure",
+              }),
+            );
+          },
+        }),
+        Layer.mock(ProviderSessionManager.ProviderSessionManagerV2)({}),
+        Layer.mock(ProviderAuthService.ProviderAuthService)({
+          tryHandlePromptCommand: () => Effect.succeed(false),
+        }),
+        Layer.mock(RunExecutionService.RunExecutionServiceV2)({ startRootRun }),
+        Layer.mock(RuntimePolicy.RuntimePolicyV2)({}),
       ),
-    );
+    ),
+  );
 
-    await Effect.gen(function* () {
-      const error = yield* (yield* ProviderTurnStart.ProviderTurnStartServiceV2)
-        .start({ threadId, runId })
-        .pipe(Effect.flip);
+  await Effect.gen(function* () {
+    const error = yield* (yield* ProviderTurnStart.ProviderTurnStartServiceV2)
+      .start({ threadId, runId })
+      .pipe(Effect.flip);
 
-      expect(error._tag).toBe("ProviderTurnStartError");
-      expect(projectionReadCount).toBe(2);
-      if (worktree === "missing") {
-        expect(pruneWorktrees).toHaveBeenCalledWith({ cwd: "/tmp/provider-turn-start-project" });
-        expect(createWorktree).toHaveBeenCalledWith({
-          cwd: "/tmp/provider-turn-start-project",
-          refName: "feature/restore",
-          path: worktreePath,
-        });
-        expect(repairWorktrees).not.toHaveBeenCalled();
-      } else {
-        expect(repairWorktrees).toHaveBeenCalledWith({ cwd: "/tmp/provider-turn-start-project" });
-        expect(createWorktree).not.toHaveBeenCalled();
-      }
-      expect(writeIfRunCurrent).not.toHaveBeenCalled();
-      expect(startRootRun).not.toHaveBeenCalled();
-    }).pipe(Effect.provide(layer), Effect.runPromise);
-  },
-);
+    expect(error._tag).toBe("ProviderTurnStartError");
+    expect(projectionReadCount).toBe(2);
+    expect(pruneWorktrees).toHaveBeenCalledWith({ cwd: "/tmp/provider-turn-start-project" });
+    expect(createWorktree).toHaveBeenCalledWith({
+      cwd: "/tmp/provider-turn-start-project",
+      refName: "feature/restore",
+      path: "/tmp/missing-provider-turn-start-worktree",
+    });
+    expect(writeIfRunCurrent).not.toHaveBeenCalled();
+    expect(startRootRun).not.toHaveBeenCalled();
+  }).pipe(Effect.provide(layer), Effect.runPromise);
+});
 
 function makeLocalCommandHarness(input: {
   readonly text: string;
@@ -195,6 +165,8 @@ function makeLocalCommandHarness(input: {
   readonly openFailure?: unknown;
   /** Fails the session open with this error as-is, unwrapped. */
   readonly openError?: unknown;
+  /** Runs in a worktree whose `.git` file still names the project's old folder. */
+  readonly strandedWorktree?: boolean;
   /** Opens the session, then fails loading its provider thread. */
   readonly ensureThreadFailure?: unknown;
   /**
@@ -272,8 +244,8 @@ function makeLocalCommandHarness(input: {
     thread: {
       id: threadId,
       activeProviderThreadId: providerThreadId,
-      branch: null,
-      worktreePath: null,
+      branch: input.strandedWorktree ? "feature/moved" : null,
+      worktreePath: input.strandedWorktree ? "/work/worktrees/moved" : null,
     } as OrchestrationV2ThreadProjection["thread"],
     runs: [
       ...(input.previousNativeSession
@@ -429,6 +401,7 @@ function makeLocalCommandHarness(input: {
       ),
     ensureThread: () => Effect.succeed(providerThread),
   };
+  const repairWorktrees = vi.fn(() => Effect.void);
   const open = vi.fn(() =>
     input.interruptOpen === true
       ? Effect.interrupt
@@ -436,39 +409,39 @@ function makeLocalCommandHarness(input: {
         ? Effect.succeed(resumeFallbackSession as never)
         : "ensureThreadFailure" in input
           ? Effect.succeed({ driver: providerThread.driver, ensureThread } as never)
-          : "openError" in input
-            ? Effect.fail(input.openError as never)
-            : "openFailure" in input
-              ? Effect.sync(() => {
-                  if (input.interruptRunBeforeOpenFailure === true) interruptRun();
-                }).pipe(
-                  Effect.andThen(
-                    Effect.fail(
-                      new ProviderSessionManager.ProviderSessionOpenError({
-                        instanceId: newInstanceId,
-                        providerSessionId,
-                        cause: input.openFailure,
-                      }),
-                    ),
+          : "openFailure" in input
+            ? Effect.sync(() => {
+                if (input.interruptRunBeforeOpenFailure === true) interruptRun();
+              }).pipe(
+                Effect.andThen(
+                  Effect.fail(
+                    new ProviderSessionManager.ProviderSessionOpenError({
+                      instanceId: newInstanceId,
+                      providerSessionId,
+                      cause: input.openFailure,
+                    }),
                   ),
-                )
-              : input.failReadsAfterRunning === true
-                ? Effect.succeed({
+                ),
+              )
+            : input.failReadsAfterRunning === true
+              ? Effect.succeed({
+                  driver: providerThread.driver,
+                  providerSession: {
+                    id: providerSessionId,
                     driver: providerThread.driver,
-                    providerSession: {
-                      id: providerSessionId,
-                      driver: providerThread.driver,
-                      providerInstanceId: newInstanceId,
-                      status: "ready",
-                      cwd: "/tmp/native-account-command",
-                      model: null,
-                      capabilities: CodexProviderCapabilitiesV2,
-                      createdAt: now,
-                      updatedAt: now,
-                      lastError: null,
-                    },
-                    ensureThread: () => Effect.succeed(providerThread),
-                  } as never)
+                    providerInstanceId: newInstanceId,
+                    status: "ready",
+                    cwd: "/tmp/native-account-command",
+                    model: null,
+                    capabilities: CodexProviderCapabilitiesV2,
+                    createdAt: now,
+                    updatedAt: now,
+                    lastError: null,
+                  },
+                  ensureThread: () => Effect.succeed(providerThread),
+                } as never)
+              : "openError" in input
+                ? Effect.fail(input.openError as never)
                 : Effect.die("A local command must not open a native session."),
   );
   const startRootRun = vi.fn<
@@ -529,10 +502,15 @@ function makeLocalCommandHarness(input: {
         }),
         Layer.mock(EventSink.EventSinkV2)({ writeIfRunCurrent }),
         IdAllocator.layer,
-        FileSystem.layerNoop({}),
+        FileSystem.layerNoop({
+          exists: (path) => Effect.succeed(path === "/work/worktrees/moved"),
+          readFileString: () => Effect.succeed("gitdir: /work/old/.git/worktrees/moved\n"),
+        }),
         Path.layer,
-        Layer.mock(GitWorkflow.GitWorkflowService)({}),
-        Layer.mock(ProjectService.ProjectService)({}),
+        Layer.mock(GitWorkflow.GitWorkflowService)({ repairWorktrees }),
+        Layer.mock(ProjectService.ProjectService)({
+          getById: () => Effect.succeed(Option.some({ workspaceRoot: "/work/new" } as never)),
+        }),
         Layer.mock(ProjectionStore.ProjectionStoreV2)({
           getTurnStartContext: () =>
             Effect.succeed({
@@ -571,6 +549,7 @@ function makeLocalCommandHarness(input: {
   );
   return {
     open,
+    repairWorktrees,
     writeIfRunCurrent,
     startRootRun,
     tryHandlePromptCommand,
@@ -630,10 +609,7 @@ effectIt.effect("marks a missing project folder so clients can link to project s
   Effect.gen(function* () {
     const harness = makeLocalCommandHarness({
       text: "Continue",
-      openError: new ProviderWorkspaceMissingError({
-        threadId: "thread",
-        cwd: "/work/moved-away",
-      }),
+      openError: new ProviderWorkspaceMissingError({ threadId: "thread", cwd: "/work/old" }),
     });
 
     yield* harness.start;
@@ -645,6 +621,20 @@ effectIt.effect("marks a missing project folder so clients can link to project s
         failure: { code: ORCHESTRATION_V2_PROJECT_FOLDER_MISSING_FAILURE_CODE },
       },
     ]);
+  }),
+);
+
+effectIt.effect("relinks a worktree left pointing at a moved project folder", () =>
+  Effect.gen(function* () {
+    const harness = makeLocalCommandHarness({
+      text: "Continue",
+      strandedWorktree: true,
+      openFailure: new Error("stop after workspace checks"),
+    });
+
+    yield* harness.start;
+
+    expect(harness.repairWorktrees).toHaveBeenCalledWith({ cwd: "/work/new" });
   }),
 );
 
