@@ -19,6 +19,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 
 import * as GitWorkflowService from "../git/GitWorkflowService.ts";
@@ -89,6 +90,7 @@ export const layer: Layer.Layer<
   | ContextHandoffService.ContextHandoffServiceV2
   | IdAllocator.IdAllocatorV2
   | FileSystem.FileSystem
+  | Path.Path
   | GitWorkflowService.GitWorkflowService
   | ProjectService.ProjectService
   | ProviderAuthService.ProviderAuthService
@@ -103,6 +105,7 @@ export const layer: Layer.Layer<
     const contextHandoffService = yield* ContextHandoffService.ContextHandoffServiceV2;
     const idAllocator = yield* IdAllocator.IdAllocatorV2;
     const fileSystem = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
     const gitWorkflow = yield* GitWorkflowService.GitWorkflowService;
     const projects = yield* ProjectService.ProjectService;
     const providerAuth = yield* ProviderAuthService.ProviderAuthService;
@@ -110,6 +113,21 @@ export const layer: Layer.Layer<
     const providerSessions = yield* ProviderSessionManager.ProviderSessionManagerV2;
     const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
     const runtimePolicy = yield* RuntimePolicy.RuntimePolicyV2;
+
+    // A linked worktree's `.git` file points at its admin folder inside the
+    // project's repository. Moving the project folder leaves that pointer dangling.
+    const isWorktreeStranded = (worktreePath: string) =>
+      fileSystem.readFileString(path.join(worktreePath, ".git")).pipe(
+        Effect.flatMap((content) => {
+          const gitDir = /^gitdir:\s*(.+?)\s*$/m.exec(content)?.[1];
+          return gitDir === undefined
+            ? Effect.succeed(false)
+            : fileSystem
+                .exists(path.resolve(worktreePath, gitDir))
+                .pipe(Effect.map((found) => !found));
+        }),
+        Effect.orElseSucceed(() => false),
+      );
 
     // These callbacks outlive startup while a run drains background work. Build
     // them outside start's scope so they cannot retain its full thread history.
@@ -460,12 +478,30 @@ export const layer: Layer.Layer<
         const exists = yield* fileSystem
           .exists(worktreePath)
           .pipe(Effect.orElseSucceed(() => true));
-        if (!exists) {
+        const stranded = exists && (yield* isWorktreeStranded(worktreePath));
+        if (!exists || stranded) {
           const project = yield* projects.getById(projection.thread.projectId).pipe(
             Effect.map(Option.getOrUndefined),
             Effect.orElseSucceed(() => undefined),
           );
-          if (project !== undefined) {
+          if (project !== undefined && stranded) {
+            yield* Effect.logWarning("provider turn start relinking worktree to moved project", {
+              threadId: projection.thread.id,
+              worktreePath,
+              workspaceRoot: project.workspaceRoot,
+            });
+            yield* gitWorkflow.repairWorktrees({ cwd: project.workspaceRoot }).pipe(
+              Effect.catchCause((cause) =>
+                Cause.hasInterruptsOnly(cause)
+                  ? Effect.failCause(cause)
+                  : Effect.logWarning("provider turn start failed to relink worktree", {
+                      threadId: projection.thread.id,
+                      worktreePath,
+                      cause: Cause.pretty(cause),
+                    }),
+              ),
+            );
+          } else if (project !== undefined) {
             yield* Effect.logWarning("provider turn start recreating missing worktree", {
               threadId: projection.thread.id,
               worktreePath,

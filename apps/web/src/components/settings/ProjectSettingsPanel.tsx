@@ -82,7 +82,7 @@ export function ProjectSettingsPanel({
   );
 
   // Remember the members of the last rendered group so a grouping-rule change
-  // (which changes the group key) can follow the project to its new group.
+  // or a moved folder (both change path-derived keys) can follow the project.
   const lastSelectionRef = useRef<{
     key: string;
     environmentId: EnvironmentId | null;
@@ -95,12 +95,12 @@ export function ProjectSettingsPanel({
       key: selected.projectKey,
       environmentId,
       checkoutKey,
-      memberKeys: members.map((member) => member.physicalProjectKey),
+      memberKeys: members.map(memberKey),
     };
   }, [selected, members, environmentId, checkoutKey]);
 
-  // A grouping-rule change replaces the group key mid-visit; follow the
-  // project to its new key instead of parking on the not-found state.
+  // A grouping-rule change or a moved folder replaces the keys mid-visit;
+  // follow the project to its new keys instead of parking on the not-found state.
   useEffect(() => {
     if (members.length > 0) return;
     const last = lastSelectionRef.current;
@@ -110,16 +110,16 @@ export function ProjectSettingsPanel({
       last.checkoutKey !== checkoutKey
     )
       return;
-    const successor = groups.find((group) =>
-      group.memberProjects.some((member) => last.memberKeys.includes(member.physicalProjectKey)),
-    );
+    const successor = groups
+      .flatMap((group) => group.memberProjects.map((member) => ({ group, member })))
+      .find(({ member }) => last.memberKeys.includes(memberKey(member)));
     if (successor) {
       void navigate({
         to: pathname,
         search: () => ({
-          project: successor.projectKey,
+          project: successor.group.projectKey,
           machine: environmentId ?? undefined,
-          checkout: checkoutKey ?? undefined,
+          checkout: checkoutKey === null ? undefined : successor.member.physicalProjectKey,
         }),
         replace: true,
         hashScrollIntoView: false,
@@ -295,6 +295,36 @@ function ProjectDetail({
 
   const hasMultipleCheckouts = group.memberProjects.length > 1;
 
+  // Points one checkout at its folder after it moved on disk. Threads without a
+  // worktree run in the project folder, so they follow on their next turn.
+  const moveMember = useCallback(
+    async (member: SidebarProjectGroupMember, nextRoot: string) => {
+      const workspaceRoot = nextRoot.trim();
+      if (!workspaceRoot || workspaceRoot === member.workspaceRoot) return;
+      const result = mapAtomCommandResult(
+        await updateProject({
+          environmentId: member.environmentId,
+          input: { projectId: member.id, workspaceRoot },
+        }),
+        () => undefined,
+      );
+      reportFailure("Failed to change project folder", result);
+    },
+    [reportFailure, updateProject],
+  );
+  const folderControl = (member: SidebarProjectGroupMember) => (
+    <ProjectFolderControl
+      member={member}
+      canBrowse={
+        member.environmentId === primaryEnvironmentId &&
+        typeof window !== "undefined" &&
+        window.desktopBridge !== undefined &&
+        canPickExternalProjectFavicon(member.workspaceRoot, navigator.platform)
+      }
+      onMove={(nextRoot) => moveMember(member, nextRoot)}
+    />
+  );
+
   const removeMembers = useCallback(
     async (members: ReadonlyArray<SidebarProjectGroupMember>) => {
       const api = readLocalApi();
@@ -390,16 +420,19 @@ function ProjectDetail({
         <SettingsRow
           key={member.physicalProjectKey}
           title={member.environmentLabel ?? "Environment"}
-          description={member.workspaceRoot}
+          description="Change the folder if this checkout moved on disk."
           control={
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => void removeMembers([member])}
-              aria-label={`Remove checkout ${member.workspaceRoot}`}
-            >
-              Remove
-            </Button>
+            <div className="flex items-center gap-2">
+              {folderControl(member)}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void removeMembers([member])}
+                aria-label={`Remove checkout ${member.workspaceRoot}`}
+              >
+                Remove
+              </Button>
+            </div>
           }
         />
       ))}
@@ -488,6 +521,13 @@ function ProjectDetail({
               </div>
             }
           />
+          {hasMultipleCheckouts ? null : (
+            <SettingsRow
+              title="Folder"
+              description="Where this project lives on disk. Change it after moving the folder."
+              control={folderControl(representative)}
+            />
+          )}
         </SettingsSection>
         <ProjectDefaultsSettings category="project" />
         <ProjectActionsSettings />
@@ -550,5 +590,44 @@ function ProjectDetail({
         </Suspense>
       ) : null}
     </>
+  );
+}
+
+/** Edits a checkout's folder: type a path, or Browse when the native picker reaches its machine. */
+function ProjectFolderControl({
+  member,
+  canBrowse,
+  onMove,
+}: {
+  member: SidebarProjectGroupMember;
+  canBrowse: boolean;
+  onMove: (nextRoot: string) => Promise<void>;
+}) {
+  const browse = async () => {
+    const picked = await settlePromise(
+      async () => (await readLocalApi()?.dialogs.pickFolder()) ?? null,
+    );
+    if (picked._tag === "Success" && picked.value) await onMove(picked.value);
+  };
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        key={member.workspaceRoot}
+        size="sm"
+        className="w-full sm:w-72"
+        aria-label={`Folder for ${member.environmentLabel ?? member.title}`}
+        defaultValue={member.workspaceRoot}
+        spellCheck={false}
+        onBlur={(event) => void onMove(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
+      />
+      {canBrowse ? (
+        <Button size="sm" variant="outline" type="button" onClick={() => void browse()}>
+          Browse
+        </Button>
+      ) : null}
+    </div>
   );
 }

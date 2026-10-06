@@ -3793,6 +3793,15 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     });
   });
 
+  const repairWorktrees: GitVcsDriver.GitVcsDriver["Service"]["repairWorktrees"] = Effect.fn(
+    "repairWorktrees",
+  )(function* (input) {
+    yield* executeGit("GitVcsDriver.repairWorktrees", input.cwd, ["worktree", "repair"], {
+      timeoutMs: 15_000,
+      fallbackErrorDetail: "git worktree repair failed",
+    });
+  });
+
   const deleteLocalBranch: GitVcsDriver.GitVcsDriver["Service"]["deleteLocalBranch"] = Effect.fn(
     "deleteLocalBranch",
   )(function* (input) {
@@ -4018,6 +4027,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     setBranchUpstream: (input) => withListRefsInvalidation(input.cwd, setBranchUpstream(input)),
     removeWorktree: (input) => withListRefsInvalidation(input.cwd, removeWorktree(input)),
     pruneWorktrees: (input) => withListRefsInvalidation(input.cwd, pruneWorktrees(input)),
+    repairWorktrees: (input) => withListRefsInvalidation(input.cwd, repairWorktrees(input)),
     deleteLocalBranch: (input) => withListRefsInvalidation(input.cwd, deleteLocalBranch(input)),
     renameBranch: (input) => withListRefsInvalidation(input.cwd, renameBranch(input)),
     createRef: (input) => withListRefsInvalidation(input.cwd, createRef(input)),
