@@ -1746,6 +1746,7 @@ export const layerWithOptions = (
               const movedAway =
                 live !== undefined &&
                 !live.supportsMultipleProviderThreads &&
+                live.attachedThreadIds.has(input.threadId) &&
                 live.busyCount === 0 &&
                 live.cwd !== cwd &&
                 !(yield* (live.runtime.hasPendingBackgroundWork ?? Effect.succeed(false)).pipe(

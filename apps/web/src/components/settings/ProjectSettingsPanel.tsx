@@ -303,11 +303,13 @@ function ProjectDetail({
 
   // Points one checkout at its folder after it moved on disk. Threads without a
   // worktree run in the project folder, so they follow on their next turn.
+  // Resolves to whether the checkout now uses the requested folder.
   const moveMember = useCallback(
-    async (member: SidebarProjectGroupMember, nextRoot: string) => {
+    async (member: SidebarProjectGroupMember, nextRoot: string): Promise<boolean> => {
       // `../renamed` means next to the old folder, as when adding a project.
       const workspaceRoot = resolveProjectPathForDispatch(nextRoot, member.workspaceRoot);
-      if (!workspaceRoot || workspaceRoot === member.workspaceRoot) return;
+      if (!workspaceRoot) return false;
+      if (workspaceRoot === member.workspaceRoot) return true;
       const result = await updateProject({
         environmentId: member.environmentId,
         input: { projectId: member.id, workspaceRoot },
@@ -336,6 +338,7 @@ function ProjectDetail({
         "Failed to change project folder",
         mapAtomCommandResult(result, () => undefined),
       );
+      return result._tag === "Success";
     },
     [reportFailure, updateProject],
   );
@@ -628,7 +631,7 @@ function ProjectFolderControl({
 }: {
   member: SidebarProjectGroupMember;
   canBrowse: boolean;
-  onMove: (nextRoot: string) => Promise<void>;
+  onMove: (nextRoot: string) => Promise<boolean>;
 }) {
   const browse = async () => {
     const picked = await settlePromise(
@@ -646,12 +649,16 @@ function ProjectFolderControl({
         defaultValue={member.workspaceRoot}
         spellCheck={false}
         onBlur={(event) => {
-          // An emptied field has nothing to save; show the current folder again.
-          if (!event.currentTarget.value.trim()) {
-            event.currentTarget.value = member.workspaceRoot;
+          // The field shows the folder the checkout uses: an emptied field or a
+          // rejected path (the toast names it) puts the current folder back.
+          const input = event.currentTarget;
+          if (!input.value.trim()) {
+            input.value = member.workspaceRoot;
             return;
           }
-          void onMove(event.currentTarget.value);
+          void onMove(input.value).then((moved) => {
+            if (!moved) input.value = member.workspaceRoot;
+          });
         }}
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur();
