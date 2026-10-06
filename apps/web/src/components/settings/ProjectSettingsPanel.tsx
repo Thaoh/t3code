@@ -645,7 +645,14 @@ function ProjectFolderControl({
         aria-label={`Folder for ${member.environmentLabel ?? member.title}`}
         defaultValue={member.workspaceRoot}
         spellCheck={false}
-        onBlur={(event) => void onMove(event.currentTarget.value)}
+        onBlur={(event) => {
+          // An emptied field has nothing to save; show the current folder again.
+          if (!event.currentTarget.value.trim()) {
+            event.currentTarget.value = member.workspaceRoot;
+            return;
+          }
+          void onMove(event.currentTarget.value);
+        }}
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur();
         }}

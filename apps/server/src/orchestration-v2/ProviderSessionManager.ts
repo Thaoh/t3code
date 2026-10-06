@@ -1751,12 +1751,16 @@ export const layerWithOptions = (
                 !(yield* (live.runtime.hasPendingBackgroundWork ?? Effect.succeed(false)).pipe(
                   Effect.catchCause(() => Effect.succeed(false)),
                 ));
-              const existing = movedAway
-                ? yield* releaseEntry({
-                    providerSessionId: input.providerSessionId,
-                    reason: "workspace_changed",
-                  }).pipe(Effect.as(undefined))
-                : live;
+              if (movedAway) {
+                // The probe yields, so a turn may have started meanwhile; the
+                // generation guard keeps a session that became busy.
+                yield* releaseEntry({
+                  providerSessionId: input.providerSessionId,
+                  reason: "workspace_changed",
+                  onlyIfIdleGeneration: live.idleGeneration,
+                });
+              }
+              const existing = (yield* Ref.get(sessions)).get(key);
               if (existing !== undefined) {
                 if (
                   !existing.attachedThreadIds.has(input.threadId) &&
