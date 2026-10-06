@@ -11,6 +11,7 @@ import {
   type OrchestrationV2TurnItem,
   RunId,
   ThreadId,
+  ORCHESTRATION_V2_PROJECT_FOLDER_MISSING_FAILURE_CODE,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Cause from "effect/Cause";
@@ -25,6 +26,7 @@ import * as Schema from "effect/Schema";
 import * as GitWorkflowService from "../git/GitWorkflowService.ts";
 import * as ProjectService from "../project/ProjectService.ts";
 import * as ProviderAuthService from "../provider/ProviderAuthService.ts";
+import { ProviderWorkspaceMissingError } from "../provider/Errors.ts";
 import * as EventSink from "./EventSink.ts";
 import * as ContextHandoffService from "./ContextHandoffService.ts";
 import {
@@ -82,6 +84,8 @@ export class ProviderTurnStartServiceV2 extends Context.Service<
   ProviderTurnStartServiceV2,
   ProviderTurnStartServiceV2Shape
 >()("t3/orchestration-v2/ProviderTurnStartService/ProviderTurnStartServiceV2") {}
+
+const isProviderWorkspaceMissingError = Schema.is(ProviderWorkspaceMissingError);
 
 export const layer: Layer.Layer<
   ProviderTurnStartServiceV2,
@@ -587,6 +591,7 @@ export const layer: Layer.Layer<
         readonly signal: string;
         readonly title: string;
         readonly error: Error;
+        readonly code?: string;
       }) =>
         Effect.gen(function* () {
           const nestedCause = "cause" in failed.error ? failed.error.cause : undefined;
@@ -608,6 +613,7 @@ export const layer: Layer.Layer<
                       ? nestedCause
                       : failed.error.message,
                 class: "provider_error",
+                ...(failed.code === undefined ? {} : { code: failed.code }),
               }),
             },
           });
@@ -618,6 +624,12 @@ export const layer: Layer.Layer<
           signal: "provider-session-open-failure",
           title: "Provider session failed to open",
           error: sessionResult.failure,
+          // Without a worktree the thread runs in the project folder, which the
+          // user can repoint from project settings.
+          ...(isProviderWorkspaceMissingError(sessionResult.failure) &&
+          projection.thread.worktreePath === null
+            ? { code: ORCHESTRATION_V2_PROJECT_FOLDER_MISSING_FAILURE_CODE }
+            : {}),
         });
         return;
       }

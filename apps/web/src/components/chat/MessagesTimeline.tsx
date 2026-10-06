@@ -18,6 +18,7 @@ import {
 } from "./timelineMinimapItems";
 import {
   COMPOSER_CONTEXT_KINDS,
+  ORCHESTRATION_V2_PROJECT_FOLDER_MISSING_FAILURE_CODE,
   ORCHESTRATION_V2_WORKSPACE_PREPARATION_FAILURE_CODE,
   type AssistantCitation,
   type EnvironmentId,
@@ -145,6 +146,7 @@ import {
   XIcon,
   ZapIcon,
   RotateCcwIcon,
+  SettingsIcon,
 } from "lucide-react";
 import { ChevronDown, ChevronRight } from "lucide";
 import type {
@@ -255,6 +257,7 @@ import { ContextChip, ContextChipLabel, type ContextChipKind } from "../ContextC
 import { createContextPresentationRegistry } from "../contextPresentationRegistry";
 import { useOpenPrLink } from "~/lib/openPullRequestLink";
 import { useClientSettings } from "~/hooks/useSettings";
+import { useOpenProjectSettings } from "~/hooks/useOpenProjectSettings";
 import type { ChatMarkdownContextReference } from "../ChatMarkdown";
 import { useMediaQuery } from "~/hooks/useMediaQuery";
 import { cn } from "~/lib/utils";
@@ -5025,6 +5028,28 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: WorkEntryRowP
   );
 });
 
+/** Where a moved project's folder gets updated. Mounts only on that error row. */
+function OpenProjectSettingsButton({ threadRef }: { threadRef: ScopedThreadRef }) {
+  const thread = useThreadShell(threadRef);
+  const openProjectSettings = useOpenProjectSettings();
+  if (!thread) return null;
+  return (
+    <div className="ms-7 pb-1">
+      <Button
+        type="button"
+        size="xs"
+        variant="outline"
+        onClick={() =>
+          openProjectSettings({ environmentId: thread.environmentId, projectId: thread.projectId })
+        }
+      >
+        <SettingsIcon aria-hidden />
+        Open project settings
+      </Button>
+    </div>
+  );
+}
+
 function WorkEntryLogRow(props: WorkEntryRowProps) {
   const { workEntry, workspaceRoot, displayLabel } = props;
   const ctx = use(TimelineRowCtx);
@@ -5096,6 +5121,10 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
           <p className="ms-7 whitespace-pre-wrap break-words py-1 text-sm leading-relaxed text-foreground/80">
             {failureItem.failure.message}
           </p>
+        ) : null}
+        {failureItem.failure.code === ORCHESTRATION_V2_PROJECT_FOLDER_MISSING_FAILURE_CODE &&
+        threadRef ? (
+          <OpenProjectSettingsButton threadRef={threadRef} />
         ) : null}
         {retryRunId !== null && onRetryWorkspacePreparation ? (
           <div className="ms-7 pb-1">

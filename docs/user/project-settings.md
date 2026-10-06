@@ -159,7 +159,8 @@ working. Current logs, message attachments, and browser profiles are kept.
 ## Moved project folders
 
 If you move or rename a project's folder on disk, select the project, open Project, and enter the
-new path under **Folder**, or choose **Browse** on desktop. A project with several checkouts has a
+new path under **Folder**, or choose **Browse** on desktop. When a thread fails because its project
+folder is gone, **Open project settings** on the error takes you there. A project with several checkouts has a
 folder field per checkout. Threads that don't use a worktree run in the new folder from their next
 turn. Worktrees stay where they are.
 
