@@ -998,11 +998,12 @@ it.effect("ProviderSessionManagerV2 opens a duplicate session only once", () =>
 );
 
 it.effect.each([
-  { backgroundWork: false, opens: 2 },
-  { backgroundWork: true, opens: 1 },
+  { backgroundWork: "none", probe: Effect.succeed(false), opens: 2 },
+  { backgroundWork: "pending", probe: Effect.succeed(true), opens: 1 },
+  { backgroundWork: "unknown", probe: Effect.die("probe failed"), opens: 1 },
 ])(
   "ProviderSessionManagerV2 reopens an idle session after its folder moves (background work: $backgroundWork)",
-  ({ backgroundWork, opens }) =>
+  ({ probe, opens }) =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       const movedTo = yield* fileSystem.makeTempDirectoryScoped();
@@ -1033,7 +1034,7 @@ it.effect.each([
         assert.strictEqual(yield* open(runtimePolicy.cwd), first);
         yield* open(movedTo);
 
-        // Background work from the last turn keeps the old session alive.
+        // Background work from the last turn, or a probe that cannot tell, keeps the old session.
         assert.equal((yield* Ref.get(state)).openCount, opens);
         assert.equal((yield* Ref.get(state)).closeCount, opens - 1);
       }).pipe(
@@ -1042,7 +1043,7 @@ it.effect.each([
             state,
             idleTimeoutMs: 60_000,
             capabilities: ExclusiveCapabilities,
-            hasPendingBackgroundWork: Effect.succeed(backgroundWork),
+            hasPendingBackgroundWork: probe,
           }),
         ),
       );

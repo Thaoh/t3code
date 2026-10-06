@@ -1750,7 +1750,10 @@ export const layerWithOptions = (
                 live.busyCount === 0 &&
                 live.cwd !== cwd &&
                 !(yield* (live.runtime.hasPendingBackgroundWork ?? Effect.succeed(false)).pipe(
-                  Effect.catchCause(() => Effect.succeed(false)),
+                  // A probe that cannot answer keeps the session; interruption still propagates.
+                  Effect.catchCause((cause) =>
+                    Cause.hasInterruptsOnly(cause) ? Effect.failCause(cause) : Effect.succeed(true),
+                  ),
                 ));
               if (movedAway) {
                 // The probe yields, so a turn may have started meanwhile; the
