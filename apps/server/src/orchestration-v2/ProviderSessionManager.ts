@@ -1741,17 +1741,22 @@ export const layerWithOptions = (
               const key = sessionKey(input.providerSessionId);
               const live = (yield* Ref.get(sessions)).get(key);
               // A moved project folder changes the thread's cwd. An idle
-              // single-thread session keeps the old one, so start a fresh one.
-              const existing =
+              // single-thread session keeps the old one, so start a fresh one,
+              // unless background work from its last turn is still running.
+              const movedAway =
                 live !== undefined &&
                 !live.supportsMultipleProviderThreads &&
                 live.busyCount === 0 &&
-                live.cwd !== cwd
-                  ? yield* releaseEntry({
-                      providerSessionId: input.providerSessionId,
-                      reason: "workspace_changed",
-                    }).pipe(Effect.as(undefined))
-                  : live;
+                live.cwd !== cwd &&
+                !(yield* (live.runtime.hasPendingBackgroundWork ?? Effect.succeed(false)).pipe(
+                  Effect.catchCause(() => Effect.succeed(false)),
+                ));
+              const existing = movedAway
+                ? yield* releaseEntry({
+                    providerSessionId: input.providerSessionId,
+                    reason: "workspace_changed",
+                  }).pipe(Effect.as(undefined))
+                : live;
               if (existing !== undefined) {
                 if (
                   !existing.attachedThreadIds.has(input.threadId) &&

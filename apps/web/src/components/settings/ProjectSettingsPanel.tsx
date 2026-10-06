@@ -15,7 +15,7 @@ import { InfoIcon, Trash2Icon } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useComposerDraftStore } from "../../composerDraftStore";
-import { useClientSettings, useUpdateClientSettings } from "../../hooks/useSettings";
+import { persistClientSettingsUpdate } from "../../hooks/useSettings";
 import { releaseProjectDraftUploads } from "../../lib/composerDraftUploads";
 import { readLocalApi } from "../../localApi";
 import {
@@ -26,8 +26,7 @@ import { useEnvironments, usePrimaryEnvironmentId } from "../../state/environmen
 import { useThreadShells } from "../../state/entities";
 import { projectEnvironment } from "../../state/projects";
 import { useAtomCommand } from "../../state/use-atom-command";
-import { selectProjectGroupingSettings } from "../../logicalProject";
-import { useUiStateStore } from "../../uiStateStore";
+import { renamePreferenceRecord, useUiStateStore } from "../../uiStateStore";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
@@ -302,10 +301,6 @@ function ProjectDetail({
 
   const hasMultipleCheckouts = group.memberProjects.length > 1;
 
-  const groupingOverrides = useClientSettings(
-    (settings) => selectProjectGroupingSettings(settings).sidebarProjectGroupingOverrides,
-  );
-  const updateClientSettings = useUpdateClientSettings();
   // Points one checkout at its folder after it moved on disk. Threads without a
   // worktree run in the project folder, so they follow on their next turn.
   const moveMember = useCallback(
@@ -325,23 +320,24 @@ function ProjectDetail({
           result.value.workspaceRoot,
         );
         useUiStateStore.getState().renameProjectPreferenceKeys(renames);
-        if (groupingOverrides && Object.keys(groupingOverrides).some((key) => renames.has(key))) {
-          void updateClientSettings({
-            sidebarProjectGroupingOverrides: Object.fromEntries(
-              Object.entries(groupingOverrides).map(([key, mode]) => [
-                renames.get(key) ?? key,
-                mode,
-              ]),
-            ),
-          });
-        }
+        void persistClientSettingsUpdate((current) =>
+          current.sidebarProjectGroupingOverrides === undefined
+            ? current
+            : {
+                ...current,
+                sidebarProjectGroupingOverrides: renamePreferenceRecord(
+                  current.sidebarProjectGroupingOverrides,
+                  renames,
+                ),
+              },
+        );
       }
       reportFailure(
         "Failed to change project folder",
         mapAtomCommandResult(result, () => undefined),
       );
     },
-    [groupingOverrides, reportFailure, updateClientSettings, updateProject],
+    [reportFailure, updateProject],
   );
   const folderControl = (member: SidebarProjectGroupMember) => (
     <ProjectFolderControl

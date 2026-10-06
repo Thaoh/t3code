@@ -155,9 +155,10 @@ describe("uiStateStore pure functions", () => {
     const environmentId = EnvironmentId.make("environment-local");
     const oldKey = derivePhysicalProjectKeyFromPath(environmentId, "/work/old");
     const newKey = derivePhysicalProjectKeyFromPath(environmentId, "/work/new");
+    // A deleted project once lived at the new path; its leftovers give way.
     const state = makeUiState({
-      projectOrder: ["other", oldKey, legacyProjectCwdPreferenceKey("/work/old")],
-      projectExpandedById: { [oldKey]: false, other: true },
+      projectOrder: [newKey, "other", oldKey, legacyProjectCwdPreferenceKey("/work/old")],
+      projectExpandedById: { [oldKey]: false, [newKey]: true, other: true },
       sidebarProjectScopeKey: oldKey,
     });
 

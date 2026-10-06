@@ -338,16 +338,36 @@ export function renameProjectPreferenceKeys(
   state: UiState,
   renames: ReadonlyMap<string, string>,
 ): UiState {
-  const rename = (key: string) => renames.get(key) ?? key;
   return {
     ...state,
-    projectOrder: state.projectOrder.map(rename),
-    projectExpandedById: Object.fromEntries(
-      Object.entries(state.projectExpandedById).map(([key, expanded]) => [rename(key), expanded]),
-    ),
+    projectOrder: renameEntries(
+      state.projectOrder.map((key) => [key, key] as const),
+      renames,
+    ).map(([key]) => key),
+    projectExpandedById: renamePreferenceRecord(state.projectExpandedById, renames),
     sidebarProjectScopeKey:
-      state.sidebarProjectScopeKey === null ? null : rename(state.sidebarProjectScopeKey),
+      state.sidebarProjectScopeKey === null
+        ? null
+        : (renames.get(state.sidebarProjectScopeKey) ?? state.sidebarProjectScopeKey),
   };
+}
+
+/** Renames keys; a renamed key replaces whatever its new key already held. */
+function renameEntries<V>(
+  entries: ReadonlyArray<readonly [string, V]>,
+  renames: ReadonlyMap<string, string>,
+): Array<[string, V]> {
+  const replaced = new Set(entries.flatMap(([key]) => renames.get(key) ?? []));
+  return entries
+    .filter(([key]) => renames.has(key) || !replaced.has(key))
+    .map(([key, value]) => [renames.get(key) ?? key, value]);
+}
+
+export function renamePreferenceRecord<V>(
+  record: Readonly<Record<string, V>>,
+  renames: ReadonlyMap<string, string>,
+): Record<string, V> {
+  return Object.fromEntries(renameEntries(Object.entries(record), renames));
 }
 
 export function setSidebarProjectScopeKey(state: UiState, projectKey: string | null): UiState {
