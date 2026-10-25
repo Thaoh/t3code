@@ -67,6 +67,7 @@ export const ProviderSessionReleaseReason = Schema.Literals([
   "runtime_error",
   "manual_shutdown",
   "server_shutdown",
+  "workspace_changed",
 ]);
 export type ProviderSessionReleaseReason = typeof ProviderSessionReleaseReason.Type;
 
@@ -193,6 +194,8 @@ interface LiveSessionEntry {
   /** Scope revocation to recorded credential ids so superseded sessions cannot revoke replacements opened before detach. */
   readonly mcpCredentialIdByThread: ReadonlyMap<ThreadId, string>;
   readonly supportsMultipleProviderThreads: boolean;
+  /** The folder this session's process was started in. */
+  readonly cwd: string | null;
   readonly runtime: ProviderAdapter.ProviderAdapterV2SessionRuntime;
   readonly exposedRuntime: ProviderAdapter.ProviderAdapterV2SessionRuntime;
   readonly eventSubscribers: Ref.Ref<
@@ -2058,6 +2061,31 @@ export const layerWithOptions = (
                 }
               }
               const key = sessionKey(input.providerSessionId);
+              const live = (yield* Ref.get(sessions)).get(key);
+              // A moved project folder changes the thread's cwd. An idle
+              // single-thread session keeps the old one, so start a fresh one,
+              // unless background work from its last turn is still running.
+              const movedAway =
+                live !== undefined &&
+                !live.supportsMultipleProviderThreads &&
+                live.attachedThreadIds.has(input.threadId) &&
+                live.busyTurns.size === 0 &&
+                live.cwd !== cwd &&
+                !(yield* (live.runtime.hasPendingBackgroundWork ?? Effect.succeed(false)).pipe(
+                  // A probe that cannot answer keeps the session; interruption still propagates.
+                  Effect.catchCause((cause) =>
+                    Cause.hasInterruptsOnly(cause) ? Effect.failCause(cause) : Effect.succeed(true),
+                  ),
+                ));
+              if (movedAway) {
+                // The probe yields, so a turn may have started meanwhile; the
+                // generation guard keeps a session that became busy.
+                yield* releaseEntry({
+                  providerSessionId: input.providerSessionId,
+                  reason: "workspace_changed",
+                  onlyIfIdleGeneration: live.idleGeneration,
+                });
+              }
               const existing = (yield* Ref.get(sessions)).get(key);
               if (existing !== undefined) {
                 const attached = existing.attachedThreadIds.has(input.threadId);
@@ -2167,6 +2195,7 @@ export const layerWithOptions = (
                 supportsMultipleProviderThreads:
                   runtime.providerSession.capabilities.sessions
                     .supportsMultipleProviderThreadsPerSession,
+                cwd: input.runtimePolicy.cwd,
                 runtime,
                 exposedRuntime,
                 eventSubscribers,

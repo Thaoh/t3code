@@ -569,6 +569,7 @@ function makeLocalCommandHarness(input: {
       ),
     ensureThread: () => Effect.succeed(providerThread),
   };
+  const repairWorktrees = vi.fn(() => Effect.void);
   const open = vi.fn(() =>
     input.interruptOpen === true
       ? Effect.interrupt
@@ -695,6 +696,7 @@ function makeLocalCommandHarness(input: {
         Layer.mock(GitWorkflow.GitWorkflowService)({
           pruneWorktrees: () => Effect.void,
           createWorktree,
+          repairWorktrees,
         }),
         Layer.mock(ProjectService.ProjectService)({
           getById: () =>
@@ -750,6 +752,7 @@ function makeLocalCommandHarness(input: {
     resolveRuntimePolicy,
     createWorktree,
     open,
+    repairWorktrees,
     writeIfRunCurrent,
     startRootRun,
     interruptTurn,
@@ -1110,6 +1113,26 @@ effectIt.effect("terminalizes a starting run when its provider session cannot op
         },
       },
     ]);
+  }),
+);
+
+effectIt.effect("relinks a worktree left pointing at a moved project folder", () =>
+  Effect.gen(function* () {
+    const worktreePath = "/work/worktrees/moved";
+    const harness = makeLocalCommandHarness({
+      text: "Continue",
+      worktreePath,
+      fileSystem: FileSystem.makeNoop({
+        exists: (path) => Effect.succeed(path === worktreePath),
+        readFileString: () => Effect.succeed("gitdir: /work/old/.git/worktrees/moved\n"),
+      }),
+      openFailure: new Error("stop after workspace checks"),
+    });
+
+    yield* harness.start;
+
+    expect(harness.repairWorktrees).toHaveBeenCalledWith({ cwd: "/tmp/native-account-project" });
+    expect(harness.createWorktree).not.toHaveBeenCalled();
   }),
 );
 

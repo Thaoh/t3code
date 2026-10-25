@@ -132,6 +132,21 @@ export const layer: Layer.Layer<
     const runtimePolicy = yield* RuntimePolicy.RuntimePolicyV2;
     const isManagedWorktreePath = yield* makeIsManagedWorktreePath;
 
+    // A linked worktree's `.git` file points into the project's repository.
+    // Moving the project folder leaves that pointer dangling.
+    const isWorktreeStranded = (worktreePath: string) =>
+      fileSystem.readFileString(path.join(worktreePath, ".git")).pipe(
+        Effect.flatMap((content) => {
+          const gitDir = /^gitdir:\s*(.+?)\s*$/m.exec(content)?.[1];
+          return gitDir === undefined
+            ? Effect.succeed(false)
+            : fileSystem
+                .exists(path.resolve(worktreePath, gitDir))
+                .pipe(Effect.map((found) => !found));
+        }),
+        Effect.orElseSucceed(() => false),
+      );
+
     // Build draining callbacks outside startup scope so they cannot retain full thread history.
     const makeRunControls = (input: {
       readonly threadId: ThreadId;
@@ -488,12 +503,30 @@ export const layer: Layer.Layer<
         const exists = yield* fileSystem
           .exists(worktreePath)
           .pipe(Effect.orElseSucceed(() => true));
-        if (!exists && (yield* isManagedWorktreePath(worktreePath))) {
+        const stranded = exists && (yield* isWorktreeStranded(worktreePath));
+        if (stranded || (!exists && (yield* isManagedWorktreePath(worktreePath)))) {
           const project = yield* projects.getById(projection.thread.projectId).pipe(
             Effect.map(Option.getOrUndefined),
             Effect.orElseSucceed(() => undefined),
           );
-          if (project !== undefined) {
+          if (project !== undefined && stranded) {
+            yield* Effect.logWarning("provider turn start relinking worktree to moved project", {
+              threadId: projection.thread.id,
+              worktreePath,
+              workspaceRoot: project.workspaceRoot,
+            });
+            yield* gitWorkflow.repairWorktrees({ cwd: project.workspaceRoot }).pipe(
+              Effect.catchCause((cause) =>
+                Cause.hasInterruptsOnly(cause)
+                  ? Effect.failCause(cause)
+                  : Effect.logWarning("provider turn start failed to relink worktree", {
+                      threadId: projection.thread.id,
+                      worktreePath,
+                      cause: Cause.pretty(cause),
+                    }),
+              ),
+            );
+          } else if (project !== undefined) {
             yield* Effect.logWarning("provider turn start recreating missing worktree", {
               threadId: projection.thread.id,
               worktreePath,
