@@ -39,10 +39,16 @@ Fork `Thaoh/t3code`, branch `feat/relocate-project` (head of closed pingdotgg/t3
 
 Docs are split across 2 and 3 instead of their own slice: a docs-only PR would document a feature that is not there yet or arrive after it.
 
+- Step 4: pushed to `origin` (`Thaoh/t3code`), fast-forward, no PRs: `feat/relocate-project` `7943cd8..4bec3e6`, `split/relocate-project-1` `4704f9d`, `-2` `41b53e4`, `-3` `9c983d2`. The split branches were built in a temporary sibling worktree `../relocate-upstream-check`, removed afterwards.
+
 ## Next
 
-- Step 4: push `feat/relocate-project` and `split/*` to origin.
+- Nothing left in this backlog. Submitting the slices is your call.
 
 ## Open questions
 
-(none yet)
+- This file is committed on `feat/relocate-project`. If that branch is ever the head of a PR, drop the file first; the `split/*` branches do not contain it.
+- Upstream drifts fast (2451 commits in ~2 weeks). If you submit later, merge `upstream/main` into split-1 first and carry it up the stack; conflicts will be in `ProviderTurnStartService.ts` and `ProjectSettingsPanel.tsx`.
+- Two server tests fail here on plain `upstream/main` too (`storageCleanup.test.ts`, `AcpSessionRuntime.processTree.test.ts`). CI was not run: pushes to non-main branches trigger no workflow. Confirm on GitHub CI when a PR exists.
+- Playwright's headless shell v1223 was downloaded into `~/.cache/ms-playwright` to run browser tests. Delete it if unwanted.
+- Not verified in a real client (no browser or desktop session was authorized). Mobile has no project-settings folder UI; it was out of scope for #16504 and still is.
