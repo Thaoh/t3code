@@ -26,15 +26,20 @@ export class CursorSdkCatalogError extends Schema.TaggedError<CursorSdkCatalogEr
       ? "Cursor SDK authentication failed."
       : "Cursor SDK catalog request failed.";
   }
+
+  get planRequired(): boolean {
+    return this.cause instanceof CursorSdkError && this.cause.code === "plan_required";
+  }
 }
 
-export interface CursorSdkCatalogShape {
-  readonly read: (apiKey: string) => Effect.Effect<CursorSdkCatalogSnapshot, CursorSdkCatalogError>;
-}
-
-export class CursorSdkCatalog extends Context.Service<CursorSdkCatalog, CursorSdkCatalogShape>()(
-  "@t3tools/provider-cursor/server/CursorSdkCatalog",
-) {}
+export class CursorSdkCatalog extends Context.Service<
+  CursorSdkCatalog,
+  {
+    readonly read: (
+      apiKey: string,
+    ) => Effect.Effect<CursorSdkCatalogSnapshot, CursorSdkCatalogError>;
+  }
+>()("@t3tools/provider-cursor/server/CursorSdkCatalog") {}
 
 function isAuthenticationFailure(cause: unknown): boolean {
   return (
@@ -87,6 +92,8 @@ export const makeCursorSdkCatalog = Effect.fn("CursorSdkCatalog.make")(function*
 
 export const layer = Layer.effect(CursorSdkCatalog, makeCursorSdkCatalog());
 
-export function layerTest(read: CursorSdkCatalogShape["read"]): Layer.Layer<CursorSdkCatalog> {
+export function layerTest(
+  read: CursorSdkCatalog["Service"]["read"],
+): Layer.Layer<CursorSdkCatalog> {
   return Layer.succeed(CursorSdkCatalog, CursorSdkCatalog.of({ read }));
 }
