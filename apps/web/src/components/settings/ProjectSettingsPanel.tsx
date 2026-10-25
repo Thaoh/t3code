@@ -10,7 +10,10 @@ import {
   type AtomCommandResult,
 } from "@t3tools/client-runtime/state/runtime";
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
-import { planProjectRemoval } from "@t3tools/client-runtime/state/projects";
+import {
+  planProjectRemoval,
+  resolveProjectPathForDispatch,
+} from "@t3tools/client-runtime/state/projects";
 import { AsyncResult } from "effect/reactivity";
 import { type EnvironmentId, type ProjectIconOverride } from "@t3tools/contracts";
 import { useLocation, useNavigate } from "@tanstack/react-router";
@@ -19,6 +22,7 @@ import { InfoIcon, Trash2Icon } from "lucide-react";
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useComposerDraftStore } from "../../composerDraftStore";
+import { persistClientSettingsUpdate } from "../../hooks/useSettings";
 import { releaseProjectDraftUploads } from "../../lib/composerDraftUploads";
 import { readLocalApi } from "../../localApi";
 import {
@@ -28,12 +32,12 @@ import {
 import { useEnvironments, usePrimaryEnvironmentId } from "../../state/environments";
 import { useThreadShells, waitForProjectRemoval } from "../../state/entities";
 import { projectEnvironment } from "../../state/projects";
+import { renamePreferenceRecord, useUiStateStore } from "../../uiStateStore";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { stackedThreadToast, toastManager } from "../ui/toast";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
   SettingResetButton,
   SettingsPageContainer,
@@ -46,7 +50,10 @@ import {
 } from "./ProjectFaviconPickerDialog";
 import { ProjectActionsSettings } from "./ProjectActionsSettings";
 import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
-import { projectGroupTitleNeedsUpdate } from "./ProjectSettingsPanel.logic";
+import {
+  projectFolderKeyRenames,
+  projectGroupTitleNeedsUpdate,
+} from "./ProjectSettingsPanel.logic";
 import { useSettingsProjectGroups } from "./useSettingsProjectGroups";
 import { settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
 
@@ -55,6 +62,10 @@ const ProjectIconPickerDialog = lazy(() =>
     default: module.ProjectIconPickerDialog,
   })),
 );
+
+function memberKey(member: { environmentId: string; id: string }): string {
+  return `${member.environmentId}:${member.id}`;
+}
 
 export type ProjectSettingsCategory = "general" | "source-control" | "project";
 
@@ -81,7 +92,7 @@ export function ProjectSettingsPanel({
         (checkoutKey === null || member.physicalProjectKey === checkoutKey),
     ) ?? [];
 
-  // Retain group members so grouping-rule changes can follow the project to its new group.
+  // Retain group members so a grouping-rule change or a moved folder can follow the project.
   const lastSelectionRef = useRef<{
     key: string;
     environmentId: EnvironmentId | null;
@@ -94,7 +105,7 @@ export function ProjectSettingsPanel({
       key: selected.projectKey,
       environmentId,
       checkoutKey,
-      memberKeys: members.map((member) => member.physicalProjectKey),
+      memberKeys: members.map(memberKey),
     };
   }, [selected, members, environmentId, checkoutKey]);
 
@@ -107,16 +118,16 @@ export function ProjectSettingsPanel({
       last.checkoutKey !== checkoutKey
     )
       return;
-    const successor = groups.find((group) =>
-      group.memberProjects.some((member) => last.memberKeys.includes(member.physicalProjectKey)),
-    );
+    const successor = groups
+      .flatMap((group) => group.memberProjects.map((member) => ({ group, member })))
+      .find(({ member }) => last.memberKeys.includes(memberKey(member)));
     if (successor) {
       void navigate({
         to: pathname,
         search: () => ({
-          project: successor.projectKey,
+          project: successor.group.projectKey,
           machine: environmentId ?? undefined,
-          checkout: checkoutKey ?? undefined,
+          checkout: checkoutKey === null ? undefined : successor.member.physicalProjectKey,
         }),
         replace: true,
         hashScrollIntoView: false,
@@ -310,6 +321,61 @@ function ProjectDetail({
 
   const hasMultipleCheckouts = group.memberProjects.length > 1;
 
+  // Points one checkout at its folder after it moved on disk. Resolves to
+  // whether the checkout now uses the requested folder.
+  const moveMember = async (
+    member: SidebarProjectGroupMember,
+    nextRoot: string,
+  ): Promise<boolean> => {
+    // `../renamed` means next to the old folder, as when adding a project.
+    const workspaceRoot = resolveProjectPathForDispatch(nextRoot, member.workspaceRoot);
+    if (!workspaceRoot) return false;
+    if (checkProjectAccess([member], "Failed to change project folder")) return false;
+    if (workspaceRoot === member.workspaceRoot) return true;
+    const result = await updateProject({
+      environmentId: member.environmentId,
+      input: { projectId: member.id, workspaceRoot },
+    });
+    if (result._tag === "Success") {
+      // Sidebar order, expansion, scope and grouping are keyed by the folder.
+      const renames = projectFolderKeyRenames(
+        member.environmentId,
+        member.workspaceRoot,
+        result.value.workspaceRoot,
+      );
+      useUiStateStore.getState().renameProjectPreferenceKeys(renames);
+      void persistClientSettingsUpdate((current) =>
+        current.sidebarProjectGroupingOverrides === undefined
+          ? current
+          : {
+              ...current,
+              sidebarProjectGroupingOverrides: renamePreferenceRecord(
+                current.sidebarProjectGroupingOverrides,
+                renames,
+              ),
+            },
+      );
+    }
+    reportFailure(
+      "Failed to change project folder",
+      mapAtomCommandResult(result, () => undefined),
+    );
+    return result._tag === "Success";
+  };
+  const folderControl = (member: SidebarProjectGroupMember) => (
+    <ProjectFolderControl
+      member={member}
+      disabled={!editableIds.has(member.environmentId)}
+      canBrowse={
+        member.environmentId === primaryEnvironmentId &&
+        typeof window !== "undefined" &&
+        window.desktopBridge !== undefined &&
+        canPickExternalProjectFavicon(member.workspaceRoot, navigator.platform)
+      }
+      onMove={(nextRoot) => moveMember(member, nextRoot)}
+    />
+  );
+
   const removeMembers = async (members: ReadonlyArray<SidebarProjectGroupMember>) => {
     if (checkProjectAccess(members, "Failed to remove project")) return;
     const api = readLocalApi();
@@ -376,16 +442,19 @@ function ProjectDetail({
     if (members) members.push(member);
     else checkoutsByEnvironment.set(member.environmentId, [member]);
   }
-  const checkoutRemoveButton = (member: SidebarProjectGroupMember) => (
-    <Button
-      size="sm"
-      variant="outline"
-      disabled={!editableIds.has(member.environmentId)}
-      onClick={() => void removeMembers([member])}
-      aria-label={`Remove checkout ${member.workspaceRoot}`}
-    >
-      Remove
-    </Button>
+  const checkoutControls = (member: SidebarProjectGroupMember) => (
+    <div className="flex items-center gap-2">
+      {folderControl(member)}
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={!editableIds.has(member.environmentId)}
+        onClick={() => void removeMembers([member])}
+        aria-label={`Remove checkout ${member.workspaceRoot}`}
+      >
+        Remove
+      </Button>
+    </div>
   );
   const checkoutChoices = (
     <SettingsSection title="Checkouts">
@@ -395,8 +464,8 @@ function ProjectDetail({
             <SettingsRow
               key={member.physicalProjectKey}
               title={member.environmentLabel ?? "Environment"}
-              description={member.workspaceRoot}
-              control={checkoutRemoveButton(member)}
+              description="Change the folder if this checkout moved on disk."
+              control={checkoutControls(member)}
             />
           ));
         }
@@ -411,40 +480,15 @@ function ProjectDetail({
             key={environmentId}
             title={labels.primary}
             description={
-              <>
-                {labels.secondary ? (
-                  <span className="block truncate">{labels.secondary}</span>
-                ) : null}
-                {!hasMultiple ? (
-                  <Tooltip>
-                    <TooltipTrigger render={<span className="block truncate" />}>
-                      {firstMember.workspaceRoot}
-                    </TooltipTrigger>
-                    <TooltipPopup>{firstMember.workspaceRoot}</TooltipPopup>
-                  </Tooltip>
-                ) : null}
-              </>
+              labels.secondary ? <span className="block truncate">{labels.secondary}</span> : null
             }
-            control={hasMultiple ? undefined : checkoutRemoveButton(firstMember)}
+            control={hasMultiple ? undefined : checkoutControls(firstMember)}
           >
             {hasMultiple ? (
               <div className="space-y-3 pb-2 pt-1">
                 {members.map((member) => (
-                  <div
-                    key={member.physicalProjectKey}
-                    className="flex min-w-0 items-center justify-between gap-3"
-                  >
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <span className="min-w-0 truncate text-xs text-muted-foreground/80" />
-                        }
-                      >
-                        {member.workspaceRoot}
-                      </TooltipTrigger>
-                      <TooltipPopup>{member.workspaceRoot}</TooltipPopup>
-                    </Tooltip>
-                    <div className="shrink-0">{checkoutRemoveButton(member)}</div>
+                  <div key={member.physicalProjectKey} className="flex min-w-0 justify-end">
+                    {checkoutControls(member)}
                   </div>
                 ))}
               </div>
@@ -545,6 +589,13 @@ function ProjectDetail({
               </div>
             }
           />
+          {hasMultipleCheckouts ? null : (
+            <SettingsRow
+              title="Folder"
+              description="Where this project lives on disk. Change it after moving the folder."
+              control={folderControl(representative)}
+            />
+          )}
         </SettingsSection>
         <ProjectDefaultsSettings category="project" />
         <ProjectActionsSettings />
@@ -608,5 +659,65 @@ function ProjectDetail({
         </Suspense>
       ) : null}
     </>
+  );
+}
+
+/** Edits a checkout's folder: type a path, or Browse when the native picker reaches its machine. */
+function ProjectFolderControl({
+  member,
+  disabled,
+  canBrowse,
+  onMove,
+}: {
+  member: SidebarProjectGroupMember;
+  disabled: boolean;
+  canBrowse: boolean;
+  onMove: (nextRoot: string) => Promise<boolean>;
+}) {
+  const browse = async () => {
+    const picked = await settlePromise(
+      async () => (await readLocalApi()?.dialogs.pickFolder()) ?? null,
+    );
+    if (picked._tag === "Success" && picked.value) await onMove(picked.value);
+  };
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        key={member.workspaceRoot}
+        size="sm"
+        className="w-full sm:w-72"
+        aria-label={`Folder for ${member.environmentLabel ?? member.title}`}
+        defaultValue={member.workspaceRoot}
+        disabled={disabled}
+        spellCheck={false}
+        onBlur={(event) => {
+          // An emptied field or a rejected path (the toast names it) puts the current folder back.
+          const input = event.currentTarget;
+          if (!input.value.trim()) {
+            input.value = member.workspaceRoot;
+            return;
+          }
+          void onMove(input.value).then((moved) => {
+            if (!moved) input.value = member.workspaceRoot;
+          });
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
+      />
+      {canBrowse ? (
+        <Button
+          size="sm"
+          variant="outline"
+          type="button"
+          // Keep focus in the field so a half-typed path is not saved on blur.
+          disabled={disabled}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => void browse()}
+        >
+          Browse
+        </Button>
+      ) : null}
+    </div>
   );
 }

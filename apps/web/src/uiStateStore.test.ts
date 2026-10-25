@@ -1,4 +1,4 @@
-import { ThreadId } from "@t3tools/contracts";
+import { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
@@ -9,11 +9,14 @@ import {
   PERSISTED_STATE_KEY,
   type PersistedUiState,
   persistState,
+  renameProjectPreferenceKeys,
   reorderProjects,
   resolveProjectExpanded,
   setProjectExpanded,
   type UiState,
 } from "./uiStateStore";
+import { projectFolderKeyRenames } from "./components/settings/ProjectSettingsPanel.logic";
+import { derivePhysicalProjectKeyFromPath } from "./logicalProject";
 
 function makeUiState(overrides: Partial<UiState> = {}): UiState {
   return {
@@ -91,6 +94,31 @@ describe("uiStateStore pure functions", () => {
     const next = reorderProjects(makeUiState(), currentOrder, [keyALocal, keyARemote], [keyC]);
 
     expect(next.projectOrder).toEqual([keyB, keyC, keyALocal, keyARemote]);
+  });
+
+  it("carries a moved folder's order, expansion and scope to its new keys", () => {
+    const environmentId = EnvironmentId.make("environment-local");
+    const oldKey = derivePhysicalProjectKeyFromPath(environmentId, "/work/old");
+    const newKey = derivePhysicalProjectKeyFromPath(environmentId, "/work/new");
+    // A deleted project once lived at the new path; its leftovers give way.
+    const state = makeUiState({
+      projectOrder: [newKey, "other", oldKey, legacyProjectCwdPreferenceKey("/work/old")],
+      projectExpandedById: { [oldKey]: false, [newKey]: true, other: true },
+      sidebarProjectScopeKey: oldKey,
+    });
+
+    const moved = renameProjectPreferenceKeys(
+      state,
+      projectFolderKeyRenames(environmentId, "/work/old", "/work/new"),
+    );
+
+    expect(moved.projectOrder).toEqual([
+      "other",
+      newKey,
+      legacyProjectCwdPreferenceKey("/work/new"),
+    ]);
+    expect(moved.projectExpandedById).toEqual({ [newKey]: false, other: true });
+    expect(moved.sidebarProjectScopeKey).toBe(newKey);
   });
 });
 
