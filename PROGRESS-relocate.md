@@ -20,10 +20,27 @@ Fork `Thaoh/t3code`, branch `feat/relocate-project` (head of closed pingdotgg/t3
   - Lint warnings left: 7 unused-var/style warnings in `ProviderTurnStartService.ts`, `ws.ts`, `GitVcsDriverCore.ts`, all present on upstream main.
   - `vp i` adds `@pnpm/exe` to `pnpm-lock.yaml` on this machine; reverted each time, never committed.
 
+- Step 2 follow-up: full web suite on `feat/relocate-project`: 347 files, all tests pass. Two worker processes segfaulted (Node v26) in `useThreadActions.permissions.test.ts` and `ProviderUpdateLaunchNotification.logic.test.ts`; both pass on re-run (45 tests).
+- Step 3: split into three stacked local branches. The top one has the same tree as `feat/relocate-project` minus this file. Line counts: raw = additions + deletions including tests; effective = the `pr-size` workflow rule (tests excluded, whitespace ignored).
+
+  | Branch                               | Base            | Raw | Effective | Check                                                                                     |
+  | ------------------------------------ | --------------- | --- | --------- | ----------------------------------------------------------------------------------------- |
+  | `split/relocate-project-1` `4704f9d` | `upstream/main` | 232 | 125       | `check:changed upstream/main`: pass, 7 test files, 305 tests                              |
+  | `split/relocate-project-2` `41b53e4` | split-1         | 318 | 270       | `check:changed split-1`: pass, 3 files, 31 tests; panel browser test + store test 28 pass |
+  | `split/relocate-project-3` `9c983d2` | split-2         | 151 | 124       | `check:changed split-2`: pass, typecheck 30 packages, 3 files, 52 tests                   |
+
+  Whole branch: 699 raw, 517 effective, which is why #16504 went over the cap.
+
+## Split plan
+
+1. **`feat(server): a moved project folder takes effect on the next turn`**: `ProjectMutation.ts` + `ws.ts` (readable error for a missing folder), `ProviderSessionManager.ts` (replace an idle single-thread session whose cwd changed, keep it if background work is pending or the probe fails), `GitVcsDriver`/`GitVcsDriverCore`/`GitWorkflowService` (`repairWorktrees`), `ProviderTurnStartService.ts` (relink a stranded worktree). Stands alone: `project.update` already accepts `workspaceRoot` (MCP `t3_project_update`), so agents can move a project today and this makes the move work.
+2. **`feat(web): change a project's folder after it moves`**: Folder field in `ProjectSettingsPanel.tsx`, key renames in `ProjectSettingsPanel.logic.ts` and `uiStateStore.ts`, user docs section. Needs 1 for the error toast text.
+3. **`feat: link a missing project folder error to project settings`**: `ORCHESTRATION_V2_PROJECT_FOLDER_MISSING_FAILURE_CODE` in contracts, the server tags the session-open failure, `TimelineWorkEntryRow.tsx` button, `useOpenProjectSettings.ts` extracted from `useThreadActionMenu.ts`, `Errors.ts` message, docs sentence. Needs 2 so the button lands on a Folder field.
+
+Docs are split across 2 and 3 instead of their own slice: a docs-only PR would document a feature that is not there yet or arrive after it.
+
 ## Next
 
-- Step 2 follow-up: full web suite run was cut off by a server restart; rerun.
-- Step 3: split plan and `split/relocate-project-N` branches.
 - Step 4: push `feat/relocate-project` and `split/*` to origin.
 
 ## Open questions
