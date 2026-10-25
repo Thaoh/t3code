@@ -17,6 +17,7 @@ import {
   ProjectId,
   type OrchestrationV2ThreadProjection,
   OrchestrationV2DomainEvent,
+  ORCHESTRATION_V2_PROJECT_FOLDER_MISSING_FAILURE_CODE,
 } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
@@ -35,6 +36,7 @@ import { withWorkspaceLease } from "../workspace/workspaceLease.ts";
 import * as GitWorkflow from "../git/GitWorkflowService.ts";
 import * as ProjectService from "../project/ProjectService.ts";
 import * as ProviderAuthService from "../provider/ProviderAuthService.ts";
+import { ProviderWorkspaceMissingError } from "../provider/Errors.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as ContextHandoffService from "./ContextHandoffService.ts";
 import * as EventSink from "./EventSink.ts";
@@ -264,6 +266,8 @@ function makeLocalCommandHarness(input: {
   readonly previousMessages?: ReadonlyArray<string>;
   readonly logoutFailure?: string;
   readonly openFailure?: unknown;
+  /** Fails the session open with this error as-is, unwrapped. */
+  readonly openError?: unknown;
   readonly ensureThreadFailure?: unknown;
   readonly historyReadFailureAfterFallback?: unknown;
   readonly interruptOpen?: boolean;
@@ -609,7 +613,9 @@ function makeLocalCommandHarness(input: {
                   ensureThread: () => Effect.succeed(providerThread),
                   resumeThread: () => Effect.succeed(projection.providerThreads[0]),
                 } as never)
-              : Effect.die("A local command must not open a native session."),
+              : "openError" in input
+                ? Effect.fail(input.openError as never)
+                : Effect.die("A local command must not open a native session."),
   );
   const startRootRun = vi.fn<
     (input: RunExecutionService.RunExecutionServiceV2StartRootRunInput) => Effect.Effect<void>
@@ -1111,6 +1117,25 @@ effectIt.effect("terminalizes a starting run when its provider session cannot op
           class: "provider_error",
           message: "DESCRIPTION is not valid ACP JSON",
         },
+      },
+    ]);
+  }),
+);
+
+effectIt.effect("marks a missing project folder so clients can link to project settings", () =>
+  Effect.gen(function* () {
+    const harness = makeLocalCommandHarness({
+      text: "Continue",
+      openError: new ProviderWorkspaceMissingError({ threadId: "thread", cwd: "/work/old" }),
+    });
+
+    yield* harness.start;
+
+    expect(harness.projection().turnItems).toMatchObject([
+      {
+        type: "error",
+        status: "failed",
+        failure: { code: ORCHESTRATION_V2_PROJECT_FOLDER_MISSING_FAILURE_CODE },
       },
     ]);
   }),

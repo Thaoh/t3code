@@ -6,8 +6,10 @@ import {
   hasQuestionAnswer,
 } from "@t3tools/client-runtime/work-log/user-input";
 import {
+  ORCHESTRATION_V2_PROJECT_FOLDER_MISSING_FAILURE_CODE,
   ORCHESTRATION_V2_WORKSPACE_PREPARATION_FAILURE_CODE,
   type EnvironmentId,
+  type ScopedThreadRef,
   ThreadId,
 } from "@t3tools/contracts";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
@@ -30,9 +32,16 @@ import {
 } from "../../session-logic";
 import ChatMarkdown from "../ChatMarkdown";
 import { ChatMarkdownAssetImage } from "./ChatMarkdownMedia";
-import { ChevronRightIcon, CircleAlertIcon, XIcon, RotateCcwIcon } from "lucide-react";
+import {
+  ChevronRightIcon,
+  CircleAlertIcon,
+  XIcon,
+  RotateCcwIcon,
+  SettingsIcon,
+} from "lucide-react";
 import { Button, InlineButton } from "../ui/button";
 import { useAssetUrls } from "../../assets/assetUrls";
+import { useOpenProjectSettings } from "../../hooks/useOpenProjectSettings";
 import { useThreadShell } from "../../state/entities";
 import {
   threadReadLabelPrefix,
@@ -168,6 +177,28 @@ export const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: WorkEn
   );
 });
 
+/** Where a moved project's folder gets updated. Mounts only on that error row. */
+function OpenProjectSettingsButton({ threadRef }: { threadRef: ScopedThreadRef }) {
+  const thread = useThreadShell(threadRef);
+  const openProjectSettings = useOpenProjectSettings();
+  if (!thread) return null;
+  return (
+    <div className="ms-7 pb-1">
+      <Button
+        type="button"
+        size="xs"
+        variant="outline"
+        onClick={() =>
+          openProjectSettings({ environmentId: thread.environmentId, projectId: thread.projectId })
+        }
+      >
+        <SettingsIcon aria-hidden />
+        Open project settings
+      </Button>
+    </div>
+  );
+}
+
 function WorkEntryLogRow(props: WorkEntryRowProps) {
   const { workEntry, workspaceRoot, displayLabel } = props;
   const ctx = use(TimelineRowCtx);
@@ -240,6 +271,10 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
           <p className="ms-7 whitespace-pre-wrap break-words py-1 text-sm leading-relaxed text-foreground/80">
             {failureItem.failure.message}
           </p>
+        ) : null}
+        {failureItem.failure.code === ORCHESTRATION_V2_PROJECT_FOLDER_MISSING_FAILURE_CODE &&
+        threadRef ? (
+          <OpenProjectSettingsButton threadRef={threadRef} />
         ) : null}
         {retryRunId !== null && onRetryWorkspacePreparation ? (
           <div className="ms-7 pb-1">
